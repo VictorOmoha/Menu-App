@@ -24,8 +24,9 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // Renderer for SSR shell
 app.use(renderer)
 
-// Home route renders landing page + #app vendor browser below
+// Home route renders landing page (clean marketing page)
 app.get('/', (c) => {
+
   const heroImage = 'https://page.gensparksite.com/v1/base64_upload/5d08717649f52e98bdb4154062ac3323'
   return c.render(
     <div>
@@ -45,52 +46,58 @@ app.get('/', (c) => {
         </div>
       </header>
 
-      {/* Hero */}
-      <section class="relative min-h-[560px] md:min-h-[640px]">
-        <div class="absolute inset-0">
-          <img src={heroImage} alt="food hero" class="w-full h-full object-cover" />
-          <div class="absolute inset-0 bg-gradient-to-b from-black/60 to-black/30"></div>
-        </div>
-        <div class="relative max-w-7xl mx-auto px-6 py-24 md:py-36 text-white">
-          <h1 class="text-5xl md:text-6xl font-bold max-w-3xl hero-shadow">Discover Local Flavors</h1>
-          <p class="mt-4 md:mt-6 text-lg md:text-xl opacity-90">From street vendors to fine dining. Find amazing food from restaurants, food trucks, home chefs, and local vendors in your area.</p>
-          <div class="mt-8 flex items-center gap-3">
-            <a id="cta-get-started" href="#browse" class="px-5 py-3 bg-white text-gray-900 rounded font-semibold">Get Started</a>
-            <a id="cta-download" href="#getapp" class="px-5 py-3 bg-transparent border border-white/70 rounded">Download App</a>
-          </div>
+      {/* Hero: two-column layout, image not used as background */}
+      <section class="bg-white">
+        <div class="max-w-7xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+          {/* Copy */}
+          <div>
+            <h1 class="text-5xl md:text-6xl font-bold text-gray-900">Discover Local Flavors</h1>
+            <p class="mt-4 md:mt-6 text-lg md:text-xl text-gray-600">From street vendors to fine dining. Find amazing food from restaurants, food trucks, home chefs, and local vendors in your area.</p>
+            <div class="mt-8 flex items-center gap-3">
+              <a id="cta-get-started" href="/app" class="px-5 py-3 bg-black text-white rounded font-semibold">Get Started</a>
+              <a id="cta-download" href="#getapp" class="px-5 py-3 border border-gray-300 text-gray-900 rounded">Download App</a>
+            </div>
 
-          {/* Categories Card */}
-          <div class="mt-12 md:mt-16 bg-white/95 backdrop-blur-sm text-gray-900 rounded-2xl shadow-xl p-6 md:p-8 max-w-4xl md:max-w-5xl">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
-              <div class="flex items-start gap-4">
-                <div class="text-black"><i class="fa-solid fa-utensils"></i></div>
-                <div>
-                  <div class="font-semibold">Restaurants</div>
-                  <div class="text-xs text-gray-500">Browse menus from local restaurants</div>
+            {/* Categories Card */}
+            <div class="mt-10 md:mt-12 bg-white text-gray-900 rounded-2xl shadow p-6 md:p-8 max-w-4xl">
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+                <div class="flex items-start gap-4">
+                  <div class="text-black"><i class="fa-solid fa-utensils"></i></div>
+                  <div>
+                    <div class="font-semibold">Restaurants</div>
+                    <div class="text-xs text-gray-500">Browse menus from local restaurants</div>
+                  </div>
                 </div>
-              </div>
-              <div class="flex items-start gap-4">
-                <div class="text-black"><i class="fa-solid fa-truck"></i></div>
-                <div>
-                  <div class="font-semibold">Food Trucks</div>
-                  <div class="text-xs text-gray-500">Track live locations and menus</div>
+                <div class="flex items-start gap-4">
+                  <div class="text-black"><i class="fa-solid fa-truck"></i></div>
+                  <div>
+                    <div class="font-semibold">Food Trucks</div>
+                    <div class="text-xs text-gray-500">Track live locations and menus</div>
+                  </div>
                 </div>
-              </div>
-              <div class="flex items-start gap-4">
-                <div class="text-black"><i class="fa-solid fa-kitchen-set"></i></div>
-                <div>
-                  <div class="font-semibold">Home Chefs</div>
-                  <div class="text-xs text-gray-500">Authentic homemade meals</div>
+                <div class="flex items-start gap-4">
+                  <div class="text-black"><i class="fa-solid fa-kitchen-set"></i></div>
+                  <div>
+                    <div class="font-semibold">Home Chefs</div>
+                    <div class="text-xs text-gray-500">Authentic homemade meals</div>
+                  </div>
                 </div>
-              </div>
-              <div class="flex items-start gap-4">
-                <div class="text-black"><i class="fa-solid fa-bread-slice"></i></div>
-                <div>
-                  <div class="font-semibold">Bakeries & More</div>
-                  <div class="text-xs text-gray-500">Fresh baked goods and specialty</div>
+                <div class="flex items-start gap-4">
+                  <div class="text-black"><i class="fa-solid fa-bread-slice"></i></div>
+                  <div>
+                    <div class="font-semibold">Bakeries & More</div>
+                    <div class="text-xs text-gray-500">Fresh baked goods and specialty</div>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Visual: use the provided image inside a card, not as background */}
+          <div class="relative">
+            <figure class="rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden bg-white">
+              <img src={heroImage} alt="Design preview" class="w-full h-auto object-cover" />
+            </figure>
           </div>
         </div>
       </section>
@@ -131,13 +138,26 @@ app.get('/', (c) => {
         </div>
       </section>
 
-      {/* Dynamic vendor browser mounts here */}
-      <section id="browse" class="bg-gray-50 border-t">
-        <div class="max-w-7xl mx-auto px-6 py-16 md:py-20">
-          <h2 class="text-2xl md:text-3xl font-bold mb-6">Explore vendors near you</h2>
-          <div id="app" class="space-y-4 md:space-y-6"></div>
+
+    </div>
+  )
+})
+
+// SPA shell route for the app experience
+app.get('/app', (c) => {
+  return c.render(
+    <div>
+      <header class="bg-white border-b">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div class="text-xl font-semibold"><a href="/">Menu</a></div>
+          <nav class="hidden md:flex items-center gap-6 text-sm text-gray-700">
+            <a href="/" class="hover:text-gray-900">Home</a>
+          </nav>
         </div>
-      </section>
+      </header>
+      <main class="max-w-7xl mx-auto px-6 py-8">
+        <div id="app" class="space-y-4 md:space-y-6"></div>
+      </main>
     </div>
   )
 })

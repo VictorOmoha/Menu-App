@@ -1067,14 +1067,7 @@ function renderGroup(code){
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  const mount = document.getElementById('app')
+  if (!mount) return
   loadVendors()
-  // Smooth-scroll CTAs if present
-  const go = (id)=>{
-    const el = document.querySelector(id)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-  const gs = document.getElementById('cta-get-started')
-  if (gs) gs.addEventListener('click', (e)=>{ e.preventDefault(); go('#browse') })
-  const dl = document.getElementById('cta-download')
-  if (dl) dl.addEventListener('click', (e)=>{ e.preventDefault(); go('#browse') })
 })
