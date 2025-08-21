@@ -6,6 +6,8 @@ const api = {
   getItemOptions: (id) => fetch(`/api/items/${id}/options`).then(r=>r.json()),
   getReviews: (vendorId) => fetch(`/api/vendors/${vendorId}/reviews`).then(r=>r.json()),
   postReview: (vendorId, payload) => fetch(`/api/vendors/${vendorId}/reviews`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
+  getReservations: (vendorId) => fetch(`/api/vendors/${vendorId}/reservations`).then(r=>r.json()),
+  postReservation: (vendorId, payload) => fetch(`/api/vendors/${vendorId}/reservations`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
   createOrder: (payload) => fetch('/api/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
   getOrder: (id) => fetch(`/api/orders/${id}`).then(r=>r.json()),
   quote: (payload) => fetch('/api/delivery/quote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json())
@@ -20,7 +22,8 @@ const state = {
   checkout: { type: 'pickup', tip_cents: 0, promo_code: '', quote: null, distance_km: '' },
   lastOrder: null,
   orderPoll: null,
-  reviews: []
+  reviews: [],
+  reservations: []
 }
 
 function money(cents){ return `$${(cents/100).toFixed(2)}` }
@@ -99,8 +102,10 @@ function renderHome(){
     state.vendor = await api.getVendor(id)
     const menus = await api.getMenus(id)
     const revs = await api.getReviews(id)
+    const resv = await api.getReservations(id)
     state.menu = menus.sections
     state.reviews = revs.reviews || []
+    state.reservations = resv.reservations || []
     state.cart = { vendor_id: +id, items: [] }
     renderVendor()
   }))
@@ -201,9 +206,77 @@ function renderVendor(){
           ${(state.reviews||[]).map(r=>`<div class=\"py-2 text-sm\"><div class=\"font-medium\">${'⭐'.repeat(r.rating)}<span class=\"text-gray-500\"> (${new Date(r.created_at).toLocaleString()})</span></div><div>${r.text||''}</div></div>`).join('') || '<div class="text-sm text-gray-500">No reviews yet</div>'}
         </div>
       </div>
+
+      <div class="bg-white rounded shadow p-4">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-semibold">Your reservations</div>
+          <button id="rs-new" class="px-2 py-1 text-sm border rounded">Reserve</button>
+        </div>
+        <div id="rs-list" class="divide-y text-sm">
+          ${(state.reservations||[]).map(r=>`<div class=\"py-2\">
+            <div class=\"flex items-center justify-between\">
+              <div>
+                <div class=\"font-medium\">${r.datetime_iso} • party ${r.party_size}</div>
+                <div class=\"text-gray-500\">Status: ${r.status}${r.notes?` • Notes: ${r.notes}`:''}</div>
+              </div>
+              <div class=\"text-gray-400\">${new Date(r.created_at).toLocaleString()}</div>
+            </div>
+          </div>`).join('') || '<div class="text-gray-500">No reservations yet</div>'}
+        </div>
+      </div>
     </div>
   `
   document.getElementById('back').onclick = () => renderHome()
+
+  // Reservations: open modal to create
+  const resBtn = document.getElementById('rs-new')
+  if (resBtn) resBtn.onclick = () => {
+    const overlay = document.createElement('div')
+    overlay.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50'
+    const content = document.createElement('div')
+    content.className = 'bg-white rounded shadow max-w-md w-full p-4'
+    content.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold">Reserve a table</div>
+        <button id="rs-close" class="text-gray-500">✕</button>
+      </div>
+      <div class="space-y-2 text-sm">
+        <label class="block">Date/time (ISO)
+          <input id="rs-dt" class="border rounded p-1 w-full" placeholder="2025-08-25T19:00:00Z" />
+        </label>
+        <label class="block">Party size
+          <input id="rs-party" type="number" min="1" max="20" class="border rounded p-1 w-full" value="2" />
+        </label>
+        <label class="block">Notes
+          <textarea id="rs-notes" class="border rounded p-2 w-full h-20" placeholder="Any special requests?"></textarea>
+        </label>
+      </div>
+      <div class="mt-3 flex justify-end gap-2">
+        <button id="rs-cancel" class="px-3 py-2 border rounded">Cancel</button>
+        <button id="rs-submit" class="px-3 py-2 bg-emerald-600 text-white rounded">Submit</button>
+      </div>
+    `
+    overlay.appendChild(content)
+    document.body.appendChild(overlay)
+    const close = ()=> overlay.remove()
+    content.querySelector('#rs-close').onclick = close
+    content.querySelector('#rs-cancel').onclick = close
+    overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close() })
+    content.querySelector('#rs-submit').onclick = async () => {
+      const dt = (content.querySelector('#rs-dt')).value || ''
+      const party = Number((content.querySelector('#rs-party')).value || 2)
+      const notes = (content.querySelector('#rs-notes')).value || ''
+      const resp = await api.postReservation(state.vendor.vendor.id, { datetime_iso: dt, party_size: party, notes })
+      if (resp.error) {
+        alert(resp.error)
+        return
+      }
+      const resv = await api.getReservations(state.vendor.vendor.id)
+      state.reservations = resv.reservations || []
+      close()
+      renderVendor()
+    }
+  }
 
   // Reviews: open modal to submit
   const revBtn = document.getElementById('rv-new')
