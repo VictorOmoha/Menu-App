@@ -24,12 +24,120 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // Renderer for SSR shell
 app.use(renderer)
 
-// Home route renders shell with #app, frontend hydrates
+// Home route renders landing page + #app vendor browser below
 app.get('/', (c) => {
+  const heroImage = 'https://page.gensparksite.com/v1/base64_upload/5d08717649f52e98bdb4154062ac3323'
   return c.render(
-    <div class="max-w-5xl mx-auto p-4">
-      <h1 class="text-2xl font-bold mb-4">Menu App</h1>
-      <div id="app" class="space-y-3"></div>
+    <div>
+      {/* Top Nav */}
+      <header class="bg-white border-b">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div class="text-xl font-semibold">Menu</div>
+          <nav class="hidden md:flex items-center gap-6 text-sm text-gray-700">
+            <a href="#how" class="hover:text-gray-900">How it Works</a>
+            <a href="#vendors" class="hover:text-gray-900">For Business</a>
+            <a href="#support" class="hover:text-gray-900">Support</a>
+          </nav>
+          <div class="flex items-center gap-2">
+            <a href="#signin" class="px-3 py-1.5 text-sm border rounded">Sign In</a>
+            <a href="#getapp" class="px-3 py-1.5 text-sm bg-black text-white rounded">Get App</a>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section class="relative">
+        <div class="absolute inset-0">
+          <img src={heroImage} alt="food hero" class="w-full h-full object-cover" />
+          <div class="absolute inset-0 bg-black/40"></div>
+        </div>
+        <div class="relative max-w-6xl mx-auto px-4 py-20 md:py-28 text-white">
+          <h1 class="text-4xl md:text-5xl font-bold max-w-3xl">Discover Local Flavors</h1>
+          <p class="mt-2 text-lg md:text-xl opacity-90">From street vendors to fine dining. Find amazing food from restaurants, food trucks, home chefs, and local vendors in your area.</p>
+          <div class="mt-6 flex items-center gap-3">
+            <a href="#app" class="px-5 py-3 bg-white text-gray-900 rounded font-semibold">Get Started</a>
+            <a href="#getapp" class="px-5 py-3 bg-transparent border border-white/70 rounded">Download App</a>
+          </div>
+
+          {/* Categories Card */}
+          <div class="mt-10 bg-white/95 backdrop-blur-sm text-gray-900 rounded-xl shadow p-4 md:p-6 max-w-4xl">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="flex items-start gap-3">
+                <div class="text-black"><i class="fa-solid fa-utensils"></i></div>
+                <div>
+                  <div class="font-semibold">Restaurants</div>
+                  <div class="text-xs text-gray-500">Browse menus from local restaurants</div>
+                </div>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="text-black"><i class="fa-solid fa-truck"></i></div>
+                <div>
+                  <div class="font-semibold">Food Trucks</div>
+                  <div class="text-xs text-gray-500">Track live locations and menus</div>
+                </div>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="text-black"><i class="fa-solid fa-kitchen-set"></i></div>
+                <div>
+                  <div class="font-semibold">Home Chefs</div>
+                  <div class="text-xs text-gray-500">Authentic homemade meals</div>
+                </div>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="text-black"><i class="fa-solid fa-bread-slice"></i></div>
+                <div>
+                  <div class="font-semibold">Bakeries & More</div>
+                  <div class="text-xs text-gray-500">Fresh baked goods and specialty</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how" class="bg-white">
+        <div class="max-w-6xl mx-auto px-4 py-12">
+          <h2 class="text-2xl md:text-3xl font-bold">How It Works</h2>
+          <div class="mt-6 grid md:grid-cols-3 gap-8 text-sm">
+            <div>
+              <div class="text-lg font-semibold">1. Discover</div>
+              <p class="text-gray-600">Find local food vendors near you</p>
+            </div>
+            <div>
+              <div class="text-lg font-semibold">2. Order</div>
+              <p class="text-gray-600">Choose pickup, delivery, or dine in</p>
+            </div>
+            <div>
+              <div class="text-lg font-semibold">3. Enjoy</div>
+              <p class="text-gray-600">Track and enjoy your order</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Vendors CTA */}
+      <section id="vendors" class="bg-gray-50">
+        <div class="max-w-6xl mx-auto px-4 py-12 grid md:grid-cols-3 gap-6 items-stretch">
+          <div class="md:col-span-2">
+            <h3 class="text-xl font-semibold">Grow your business with Menu</h3>
+            <p class="mt-2 text-gray-600">Join our platform to reach new customers and manage orders, menus, loyalty, group orders and more.</p>
+          </div>
+          <div class="bg-white rounded-xl shadow p-6">
+            <div class="text-lg font-semibold">For Vendors</div>
+            <p class="mt-2 text-sm text-gray-600">Grow your business with Menu</p>
+            <a href="#join" class="mt-4 inline-block px-4 py-2 bg-black text-white rounded">Join as Vendor</a>
+          </div>
+        </div>
+      </section>
+
+      {/* Dynamic vendor browser mounts here */}
+      <section id="browse" class="bg-white border-t">
+        <div class="max-w-6xl mx-auto px-4 py-10">
+          <h2 class="text-xl font-semibold mb-3">Explore vendors near you</h2>
+          <div id="app" class="space-y-3"></div>
+        </div>
+      </section>
     </div>
   )
 })
