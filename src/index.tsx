@@ -278,6 +278,36 @@ async function ensureSchemaAndSeed(db: D1Database) {
     .run()
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_vendor_id ON reviews(vendor_id)`).run()
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id)`).run()
+
+  // Loyalty table (per user/vendor)
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS loyalty (
+        user_id INTEGER NOT NULL,
+        vendor_id INTEGER NOT NULL,
+        points INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, vendor_id)
+      )`
+    )
+    .run()
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_loyalty_vendor_id ON loyalty(vendor_id)`).run()
+
+  // Reservations
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS reservations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        vendor_id INTEGER NOT NULL,
+        party_size INTEGER NOT NULL,
+        datetime_iso TEXT NOT NULL,
+        notes TEXT,
+        status TEXT NOT NULL DEFAULT 'requested',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`
+    )
+    .run()
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_reservations_vendor_id ON reservations(vendor_id)`).run()
 }
 
 // ---------- Utility ----------
@@ -518,6 +548,40 @@ app.post('/api/vendors/:id/reviews', async (c) => {
   return c.json({ ok: true })
 })
 
+// ---------- Loyalty & Reservations ----------
+app.get('/api/vendors/:id/loyalty', async (c) => {
+  const db = c.env.DB
+  const vendorId = Number(c.req.param('id'))
+  const userId = 1
+  const row = await queryOne<{ points: number }>(db, 'SELECT points FROM loyalty WHERE user_id = ? AND vendor_id = ?', [userId, vendorId])
+  return c.json({ points: row?.points || 0 })
+})
+
+app.get('/api/vendors/:id/reservations', async (c) => {
+  const db = c.env.DB
+  const vendorId = Number(c.req.param('id'))
+  const userId = 1
+  const list = await queryAll<any>(db, 'SELECT * FROM reservations WHERE vendor_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 20', [vendorId, userId])
+  return c.json({ reservations: list })
+})
+
+app.post('/api/vendors/:id/reservations', async (c) => {
+  const db = c.env.DB
+  const vendorId = Number(c.req.param('id'))
+  const body = await c.req.json<{ party_size: number; datetime_iso: string; notes?: string }>()
+  const userId = 1
+  const party = Math.max(1, Math.min(20, Number(body.party_size || 1)))
+  const dt = String(body.datetime_iso || '').trim()
+  if (!dt) return c.json({ error: 'datetime_iso required' }, 400)
+  const res = await db
+    .prepare('INSERT INTO reservations (user_id, vendor_id, party_size, datetime_iso, notes, status) VALUES (?, ?, ?, ?, ?, "requested")')
+    .bind(userId, vendorId, party, dt, body.notes || null)
+    .run()
+  const id = Number(res.meta.last_row_id)
+  const rec = await queryOne<any>(db, 'SELECT * FROM reservations WHERE id = ?', [id])
+  return c.json({ reservation: rec })
+})
+
 // ---------- Payments (stub for MVP) ----------
 app.post('/api/payments/intent', async (c) => {
   const body = await c.req.json<{ amount: number; currency?: string }>().catch(() => ({ amount: 0 }))
@@ -605,6 +669,20 @@ app.post('/api/orders', async (c) => {
   }
 
   const order = await queryOne<any>(db, 'SELECT * FROM orders WHERE id = ?', [orderId])
+
+  // Award loyalty points (simple rule): 1 point per $1 total
+  try {
+    const points = Math.floor(Number(order.total || 0) / 100)
+    await db
+      .prepare(
+        `INSERT INTO loyalty (user_id, vendor_id, points)
+         VALUES (?, ?, ?)
+         ON CONFLICT(user_id, vendor_id) DO UPDATE SET points = points + excluded.points`
+      )
+      .bind(userId, vendorId, points)
+      .run()
+  } catch {}
+
   return c.json({ order })
 })
 

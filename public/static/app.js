@@ -116,6 +116,7 @@ function renderVendor(){
     <div class="mb-4 flex items-center gap-2">
       <button id="back" class="text-blue-600">← Back</button>
       <h2 class="text-2xl font-bold">${state.vendor.vendor.org_name}</h2>
+      <span class="text-sm text-gray-600">${(state.vendor.vendor.rating_avg||0).toFixed(1)} ⭐ (${state.vendor.vendor.rating_count||0})</span>
     </div>
     <div class="grid md:grid-cols-3 gap-6">
       <div class="md:col-span-2 space-y-4">
@@ -178,7 +179,12 @@ function renderVendor(){
         <div class="border-t mt-2 pt-2 space-y-1 text-sm">
           <div class="flex justify-between"><div>Subtotal</div><div id="subtotal">${money(calcSubtotal())}</div></div>
           <div class="flex justify-between"><div>Taxes (8%)</div><div id="ck-taxes"></div></div>
-          <div class="flex justify-between"><div>Fees</div><div id="ck-fees"></div></div>
+          ${state.checkout.type==='delivery' ? `
+            <div class="flex justify-between"><div>Service fee</div><div id="ck-fee-base"></div></div>
+            <div class="flex justify-between"><div>Delivery (quote)</div><div id="ck-fee-quote"></div></div>
+          ` : `
+            <div class="flex justify-between"><div>Fees</div><div id="ck-fees"></div></div>
+          `}
           <div class="flex justify-between"><div>Tip</div><div id="ck-tip-view"></div></div>
           <div class="flex justify-between"><div>Discount</div><div id="ck-discount"></div></div>
           <div class="flex justify-between font-semibold border-t pt-1"><div>Total</div><div id="ck-total"></div></div>
@@ -253,7 +259,16 @@ function renderVendor(){
   const discount = (state.checkout.promo_code||'').toUpperCase()==='SAVE10' ? Math.min(Math.round(subtotal*0.1), 500) : 0
   const total = Math.max(0, subtotal + tax + fees + tipCents - discount)
   document.getElementById('ck-taxes').textContent = money(tax)
-  document.getElementById('ck-fees').textContent = money(fees)
+  if (state.checkout.type==='delivery') {
+    const base = baseFees
+    const quote = quoteFee
+    const baseEl = document.getElementById('ck-fee-base')
+    const quoteEl = document.getElementById('ck-fee-quote')
+    if (baseEl) baseEl.textContent = money(base)
+    if (quoteEl) quoteEl.textContent = money(quote)
+  } else {
+    document.getElementById('ck-fees').textContent = money(fees)
+  }
   document.getElementById('ck-tip-view').textContent = money(tipCents)
   document.getElementById('ck-discount').textContent = discount?`- ${money(discount)}`:'- $0.00'
   document.getElementById('ck-total').textContent = money(total)
