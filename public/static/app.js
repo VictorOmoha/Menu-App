@@ -645,6 +645,107 @@ function openOptionsModal(item, groups){
   }
 }
 
+// Options modal specialized for Group add flow
+function openOptionsModalGroup(item, groups, code, user_name, onAdded){
+  const overlay = document.createElement('div')
+  overlay.id = 'modal-overlay'
+  overlay.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50'
+  const content = document.createElement('div')
+  content.className = 'bg-white rounded shadow max-w-lg w-full p-4'
+  content.innerHTML = `
+    <div class="flex items-center justify-between mb-2">
+      <div class="font-semibold text-lg">Customize ${item.name}</div>
+      <button id="modal-close" class="text-gray-500">✕</button>
+    </div>
+    <div class="text-sm text-gray-600 mb-2">Base price: ${money(item.price)}</div>
+    <div class="space-y-4 max-h-[60vh] overflow-auto">
+      ${groups.map(g => `
+        <div>
+          <div class=\"font-medium\">${g.name} ${g.required?'<span class=\"text-red-600\">*</span>':''}</div>
+          <div class=\"text-xs text-gray-500 mb-1\">${g.min||0}-${g.max||1} selectable</div>
+          <div class=\"space-y-1\">
+            ${g.options.map(o => {
+              const type = (g.max||1) === 1 ? 'radio' : 'checkbox'
+              const name = `group-${g.id}`
+              const price = o.price_delta ? ` (+${money(o.price_delta)})` : ''
+              return `<label class=\"flex items-center gap-2 text-sm\"><input type=\"${type}\" name=\"${name}\" value=\"${o.id}\" data-price=\"${o.price_delta||0}\"> ${o.name}${price}</label>`
+            }).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="mt-4 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <button id="qty-dec" class="px-2 py-1 border rounded">-</button>
+        <input id="qty" class="w-14 text-center border rounded py-1" value="1">
+        <button id="qty-inc" class="px-2 py-1 border rounded">+</button>
+      </div>
+      <div class="font-semibold">Total: <span id="modal-total">${money(item.price)}</span></div>
+    </div>
+    <div class="mt-3 flex justify-end gap-2">
+      <button id="modal-cancel" class="px-3 py-2 rounded border">Cancel</button>
+      <button id="modal-add" class="px-3 py-2 rounded bg-emerald-600 text-white">Add to group</button>
+    </div>
+  `
+  overlay.appendChild(content)
+  document.body.appendChild(overlay)
+
+  const qtyEl = content.querySelector('#qty')
+  const totalEl = content.querySelector('#modal-total')
+  const close = ()=>{ overlay.remove() }
+  content.querySelector('#modal-close').onclick = close
+  content.querySelector('#modal-cancel').onclick = close
+  overlay.addEventListener('click', (e) => { if(e.target === overlay) close() })
+
+  const updateTotal = ()=>{
+    const selectedDeltas = Array.from(content.querySelectorAll('input[type="checkbox"], input[type="radio"]'))
+      .filter((el)=>el.checked)
+      .map((el)=>Number(el.getAttribute('data-price')||0))
+    const unit = item.price + selectedDeltas.reduce((s,v)=>s+v,0)
+    const qty = Math.max(1, Number(qtyEl.value||1))
+    totalEl.textContent = money(unit * qty)
+  }
+  content.querySelector('#qty-inc').onclick = ()=>{ qtyEl.value = String(Math.max(1, Number(qtyEl.value||1) + 1)); updateTotal() }
+  content.querySelector('#qty-dec').onclick = ()=>{ qtyEl.value = String(Math.max(1, Number(qtyEl.value||1) - 1)); updateTotal() }
+  content.querySelectorAll('input').forEach((el)=> el.addEventListener('change', () => {
+    const name = el.getAttribute('name')
+    const grp = groups.find(g => `group-${g.id}` === name)
+    if (!grp) return updateTotal()
+    const max = grp.max || 1
+    const inputs = Array.from(content.querySelectorAll(`input[name="${name}"]`))
+    const checked = inputs.filter(i => i.checked)
+    if ((grp.max||1) > 1 && checked.length > max) {
+      el.checked = false
+      return
+    }
+    updateTotal()
+  }))
+  updateTotal()
+
+  content.querySelector('#modal-add').onclick = async () => {
+    const selectedOptions = []
+    for (const g of groups) {
+      const name = `group-${g.id}`
+      const inputs = Array.from(content.querySelectorAll(`input[name="${name}"]`))
+      const chosen = inputs.filter(i => i.checked).map(i => Number(i.value))
+      const min = g.min || 0
+      const max = g.max || 1
+      if (g.required && chosen.length === 0) { alert(`Please select at least one option for ${g.name}`); return }
+      if (chosen.length < min) { alert(`Please select at least ${min} for ${g.name}`); return }
+      if (chosen.length > max) { alert(`Please select at most ${max} for ${g.name}`); return }
+      selectedOptions.push(...chosen)
+    }
+    const selectedDeltas = Array.from(content.querySelectorAll('input[type="checkbox"], input[type="radio"]'))
+      .filter((el)=>el.checked)
+      .map((el)=>Number(el.getAttribute('data-price')||0))
+    const unit = item.price + selectedDeltas.reduce((s,v)=>s+v,0)
+    const qty = Math.max(1, Number(qtyEl.value||1))
+    await api.groupAdd(code, { item_id: item.id, qty, user_name, selected_options: selectedOptions })
+    close()
+    if (typeof onAdded === 'function') onAdded()
+  }
+}
+
 function renderOrderSummary(details){
   const el = document.getElementById('app')
   const order = details.order
@@ -725,7 +826,7 @@ function renderGroup(code){
       <div class="bg-white rounded shadow p-4">
         <div class="flex items-center justify-between">
           <div class="font-semibold text-lg">Group: <span class="font-mono">${code}</span></div>
-          <div class="text-sm text-gray-500">Vendor: ${state.vendor?.vendor?.org_name || ''}</div>
+          <div class="text-sm text-gray-500">Vendor: ${state.vendor?.vendor?.org_name || ''} • ${(state.vendor?.vendor?.rating_avg||0).toFixed(1)} ⭐ (${state.vendor?.vendor?.rating_count||0})</div>
         </div>
         <div id="go-body" class="mt-3 text-sm text-gray-600">Loading…</div>
       </div>
@@ -738,6 +839,10 @@ function renderGroup(code){
           <input id="gi-name" class="border rounded p-1 w-40" placeholder="your name (optional)">
           <button id="gi-add" class="px-2 py-1 border rounded">Add</button>
         </div>
+      </div>
+      <div class="bg-white rounded shadow p-4">
+        <div class="font-semibold mb-2">Browse menu</div>
+        <div id="gm-sections" class="space-y-3 text-sm">Loading menu…</div>
       </div>
       <div id="gs-panel" class="bg-white rounded shadow p-4">
         Loading submit panel…
@@ -764,6 +869,50 @@ function renderGroup(code){
       const loy = await api.getLoyalty(vendorId)
       state.groupLoyalty = Math.max(0, Number(loy.points||0))
     } catch {}
+    // Ensure vendor menu is loaded
+    try {
+      if (!Array.isArray(state.menu) || state.menu.length === 0) {
+        const menus = await api.getMenus(vendorId)
+        state.menu = menus.sections || []
+      }
+    } catch {}
+    // Render browse menu panel
+    const gm = document.getElementById('gm-sections')
+    if (gm) {
+      gm.innerHTML = `
+        ${(state.menu||[]).map(sec => `
+          <div>
+            <div class=\"font-medium\">${sec.name}</div>
+            <div class=\"divide-y\">
+              ${(sec.items||[]).map(item => `
+                <div class=\"py-2 flex items-center justify-between\">
+                  <div>
+                    <div class=\"font-medium\">${item.name}</div>
+                    <div class=\"text-xs text-gray-500\">${item.description||''}</div>
+                  </div>
+                  <div class=\"flex items-center gap-2\">
+                    <div class=\"text-sm font-semibold\">${money(item.base_price)}</div>
+                    <button class=\"px-2 py-1 text-xs bg-emerald-600 text-white rounded\" data-gadd='${JSON.stringify({id:item.id, name:item.name, price:item.base_price}).replace(/'/g, "&apos;") }'>Add</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      `
+      document.querySelectorAll('[data-gadd]').forEach(btn => btn.addEventListener('click', async () => {
+        const payload = JSON.parse(btn.getAttribute('data-gadd').replace(/&apos;/g, "'"))
+        const groups = (await api.getItemOptions(payload.id)).groups || []
+        const requiresModal = groups.some(g => g.required || (g.min||0) > 0)
+        const user_name = (document.getElementById('gi-name')||{value:''}).value || ''
+        if (!requiresModal && groups.length === 0) {
+          await api.groupAdd(code, { item_id: payload.id, qty: 1, user_name })
+          refresh()
+          return
+        }
+        openOptionsModalGroup(payload, groups, code, user_name, () => refresh())
+      }))
+    }
     // Ensure defaults
     if (!state.groupCheckout) state.groupCheckout = { type: 'pickup', tip_cents: 0, promo_code: '', quote: null, distance_km: '', use_points: false, loyalty_points: 0 }
     const panel = document.getElementById('gs-panel')
