@@ -11,7 +11,11 @@ const api = {
   postReservation: (vendorId, payload) => fetch(`/api/vendors/${vendorId}/reservations`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
   createOrder: (payload) => fetch('/api/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
   getOrder: (id) => fetch(`/api/orders/${id}`).then(r=>r.json()),
-  quote: (payload) => fetch('/api/delivery/quote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json())
+  quote: (payload) => fetch('/api/delivery/quote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
+  groupStart: (vendor_id) => fetch('/api/group/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({vendor_id})}).then(r=>r.json()),
+  groupGet: (code) => fetch(`/api/group/${code}`).then(r=>r.json()),
+  groupAdd: (code, payload) => fetch(`/api/group/${code}/add`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
+  groupSubmit: (code, payload) => fetch(`/api/group/${code}/submit`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json())
 }
 
 const state = {
@@ -25,7 +29,11 @@ const state = {
   orderPoll: null,
   reviews: [],
   reservations: [],
-  loyalty: 0
+  loyalty: 0,
+  group: null,
+  groupCode: '',
+  groupCheckout: { type: 'pickup', tip_cents: 0, promo_code: '', quote: null, distance_km: '', use_points: false, loyalty_points: 0 },
+  groupLoyalty: 0
 }
 
 function money(cents){ return `$${(cents/100).toFixed(2)}` }
@@ -226,6 +234,24 @@ function renderVendor(){
 
       <div class="bg-white rounded shadow p-4">
         <div class="flex items-center justify-between mb-2">
+          <div class="font-semibold">Group order</div>
+        </div>
+        <div class="grid gap-2 text-sm">
+          <div class="flex items-center gap-2">
+            <button id="go-start" class="px-2 py-1 border rounded">Start group order</button>
+            ${state.groupCode ? `<span class="text-gray-700">Code: <span class="font-mono" id="go-code-view">${state.groupCode}</span></span>
+            <button id="go-copy" class="px-2 py-1 border rounded text-xs">Copy</button>
+            <button id="go-open" class="px-2 py-1 bg-blue-600 text-white rounded text-xs">Open</button>` : ''}
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="go-code" class="border rounded p-1 w-40" placeholder="Enter code" value="${state.groupCode||''}">
+            <button id="go-join" class="px-2 py-1 border rounded">Join</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded shadow p-4">
+        <div class="flex items-center justify-between mb-2">
           <div class="font-semibold">Your reservations</div>
           <button id="rs-new" class="px-2 py-1 text-sm border rounded">Reserve</button>
         </div>
@@ -244,6 +270,31 @@ function renderVendor(){
     </div>
   `
   document.getElementById('back').onclick = () => renderHome()
+
+  // Group order controls
+  const goStart = document.getElementById('go-start')
+  if (goStart) goStart.onclick = async () => {
+    const resp = await api.groupStart(state.vendor.vendor.id)
+    if (resp.error) { alert(resp.error); return }
+    state.groupCode = resp.code
+    renderVendor()
+  }
+  const goCopy = document.getElementById('go-copy')
+  if (goCopy) goCopy.onclick = async () => {
+    const code = (document.getElementById('go-code-view')).textContent
+    try { await navigator.clipboard.writeText(code); goCopy.textContent = 'Copied!'; setTimeout(()=>{ goCopy.textContent='Copy' }, 1500) } catch {}
+  }
+  const goOpen = document.getElementById('go-open')
+  if (goOpen) goOpen.onclick = async () => {
+    renderGroup(state.groupCode)
+  }
+  const goJoin = document.getElementById('go-join')
+  if (goJoin) goJoin.onclick = async () => {
+    const code = (document.getElementById('go-code')).value.trim().toUpperCase()
+    if (!code) return
+    renderGroup(code)
+  }
+
 
   // Reservations: open modal to create
   const resBtn = document.getElementById('rs-new')
@@ -462,6 +513,11 @@ function renderVendor(){
     }
     const details = await api.getOrder(res.order.id)
     state.lastOrder = details
+    // Refresh loyalty balance immediately after order
+    try {
+      const loy = await api.getLoyalty(state.cart.vendor_id)
+      state.loyalty = loy.points || 0
+    } catch {}
     renderOrderSummary(details)
   }
 }
@@ -655,6 +711,209 @@ function renderOrderSummary(details){
       if (etaEl) etaEl.textContent = eta ? ` • ETA: ${eta}` : ''
       if (terminal.has(s)) { clearInterval(state.orderPoll); state.orderPoll = null }
     }, 5000)
+  }
+}
+
+function renderGroup(code){
+  state.groupCode = code
+  const el = document.getElementById('app')
+  el.innerHTML = `
+    <div class="max-w-3xl mx-auto space-y-3">
+      <div>
+        <button id="back-vendor" class="text-blue-600">← Back to Vendor</button>
+      </div>
+      <div class="bg-white rounded shadow p-4">
+        <div class="flex items-center justify-between">
+          <div class="font-semibold text-lg">Group: <span class="font-mono">${code}</span></div>
+          <div class="text-sm text-gray-500">Vendor: ${state.vendor?.vendor?.org_name || ''}</div>
+        </div>
+        <div id="go-body" class="mt-3 text-sm text-gray-600">Loading…</div>
+      </div>
+      <div class="bg-white rounded shadow p-4">
+        <div class="font-semibold mb-2">Add item to group</div>
+        <div class="text-xs text-gray-600 mb-2">Use the menu on the vendor page to pick items and note the ID; for MVP we quickly add by item ID.</div>
+        <div class="flex items-center gap-2">
+          <input id="gi-item" class="border rounded p-1 w-28" placeholder="item id">
+          <input id="gi-qty" class="border rounded p-1 w-20" placeholder="qty" value="1">
+          <input id="gi-name" class="border rounded p-1 w-40" placeholder="your name (optional)">
+          <button id="gi-add" class="px-2 py-1 border rounded">Add</button>
+        </div>
+      </div>
+      <div id="gs-panel" class="bg-white rounded shadow p-4">
+        Loading submit panel…
+      </div>
+    </div>
+  `
+  const back = document.getElementById('back-vendor')
+  back.onclick = () => renderVendor()
+
+  const bodyEl = document.getElementById('go-body')
+  const refresh = async () => {
+    const data = await api.groupGet(code)
+    if (!data.group) { bodyEl.textContent = 'Group not found'; return }
+    const items = data.items || []
+    const subtotal = data.subtotal || 0
+    bodyEl.innerHTML = `
+      <div class="divide-y">
+        ${items.map(it => `<div class=\"py-2 flex justify-between\"><div>#${it.item_id} × ${it.qty} • ${it.user_name||'Guest'}</div><div>${money(it.line_total)}</div></div>`).join('')||'<div class=\"text-gray-500\">No items yet</div>'}
+      </div>
+      <div class="mt-2 flex justify-between font-semibold"><div>Subtotal</div><div>${money(subtotal)}</div></div>
+    `
+    const vendorId = Number(data.group.vendor_id)
+    try {
+      const loy = await api.getLoyalty(vendorId)
+      state.groupLoyalty = Math.max(0, Number(loy.points||0))
+    } catch {}
+    // Ensure defaults
+    if (!state.groupCheckout) state.groupCheckout = { type: 'pickup', tip_cents: 0, promo_code: '', quote: null, distance_km: '', use_points: false, loyalty_points: 0 }
+    const panel = document.getElementById('gs-panel')
+    const gc = state.groupCheckout
+    const renderSubmit = () => {
+      const isDelivery = gc.type === 'delivery'
+      const tax = Math.round(subtotal * 0.08)
+      const baseFees = isDelivery ? 399 : 99
+      const quoteFee = isDelivery && gc.quote ? gc.quote.fee : 0
+      const fees = baseFees + quoteFee
+      const promoDiscount = (gc.promo_code||'').toUpperCase()==='SAVE10' ? Math.min(Math.round(subtotal*0.1), 500) : 0
+      const tipCents = Math.max(0, Number(gc.tip_cents||0))
+      let loyaltyApplied = 0
+      if (gc.use_points) {
+        const req = Math.max(0, Math.floor(Number(gc.loyalty_points||0)))
+        const avail = Math.max(0, Math.floor(Number(state.groupLoyalty||0)))
+        const maxBySubtotal = Math.max(0, subtotal - promoDiscount)
+        loyaltyApplied = Math.max(0, Math.min(req, avail, maxBySubtotal))
+      }
+      const total = Math.max(0, subtotal + tax + fees + tipCents - promoDiscount - loyaltyApplied)
+      panel.innerHTML = `
+        <div class="font-semibold mb-2">Submit group order</div>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center justify-between">
+            <label class="inline-flex items-center gap-2">
+              <select id="gs-type" class="border rounded p-1 text-sm">
+                <option value="pickup" ${gc.type==='pickup'?'selected':''}>Pickup</option>
+                <option value="delivery" ${gc.type==='delivery'?'selected':''}>Delivery</option>
+              </select>
+            </label>
+            <label class="inline-flex items-center gap-1">
+              Tip: <input id="gs-tip" class="border rounded p-1 w-24" placeholder="0" value="${(tipCents/100).toFixed(2)}" />
+            </label>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-gray-600">Tip quick:</span>
+            ${[0,10,15,20].map(p=>`<button class=\"px-2 py-1 border rounded\" data-gs-tip=\"${p}\">${p}%</button>`).join('')}
+          </div>
+          ${isDelivery ? `
+          <div class="flex items-center justify-between">
+            <input id="gs-distance" class="border rounded p-1 w-28" placeholder="km" value="${gc.distance_km||''}" />
+            <button id="gs-quote" class="px-2 py-1 bg-slate-600 text-white rounded">Get quote</button>
+          </div>
+          <div id="gs-quote-view" class="text-xs text-gray-600">${gc.quote ? `Delivery fee: ${money(gc.quote.fee)} • ETA: ${gc.quote.eta_minutes}m` : ''}</div>
+          ` : ''}
+          <div class="flex items-center justify-between">
+            <input id="gs-promo" class="border rounded p-1 w-32" placeholder="Promo code" value="${gc.promo_code||''}" />
+            <div class="flex items-center gap-2">
+              <button id="gs-max" class="px-2 py-1 border rounded text-xs">Max</button>
+              <button id="gs-apply" class="px-2 py-1 border rounded">Apply</button>
+            </div>
+          </div>
+          <div id="gs-promo-msg" class="text-xs ${(gc.promo_code||'').toUpperCase()==='SAVE10' ? 'text-emerald-700':'text-red-600'}">
+            ${gc.promo_code ? ((gc.promo_code||'').toUpperCase()==='SAVE10' ? 'SAVE10 applied: 10% up to $5' : 'Invalid code') : ''}
+          </div>
+        </div>
+        <div class="mt-2 space-y-2 text-sm">
+          <div class="flex items-center justify-between">
+            <label class="inline-flex items-center gap-2">
+              <input id="gs-use-points" type="checkbox" ${gc.use_points?'checked':''}>
+              <span>Use loyalty points (${state.groupLoyalty||0} pts)</span>
+            </label>
+            <input id="gs-points" class="border rounded p-1 w-28" placeholder="points" value="${gc.loyalty_points||0}" ${gc.use_points?'':'disabled'} />
+          </div>
+        </div>
+        <div class="border-t mt-2 pt-2 space-y-1 text-sm">
+          <div class="flex justify-between"><div>Subtotal</div><div id="gs-subtotal">${money(subtotal)}</div></div>
+          <div class="flex justify-between"><div>Taxes (8%)</div><div id="gs-taxes">${money(tax)}</div></div>
+          ${isDelivery ? `
+            <div class="flex justify-between"><div>Service fee</div><div id="gs-fee-base">${money(baseFees)}</div></div>
+            <div class="flex justify-between"><div>Delivery (quote)</div><div id="gs-fee-quote">${money(quoteFee)}</div></div>
+          ` : `
+            <div class="flex justify-between"><div>Fees</div><div id="gs-fees">${money(fees)}</div></div>
+          `}
+          <div class="flex justify-between"><div>Tip</div><div id="gs-tip-view">${money(tipCents)}</div></div>
+          <div class="flex justify-between"><div>Discount</div><div id="gs-discount">${(promoDiscount+loyaltyApplied)?`- ${money(promoDiscount+loyaltyApplied)}`:'- $0.00'}</div></div>
+          ${gc.use_points && gc.loyalty_points ? `<div class="flex justify-between text-xs text-gray-600"><div>Loyalty applied</div><div id="gs-loyalty-applied">- ${money(loyaltyApplied)}</div></div>`:''}
+          <div class="flex justify-between font-semibold border-t pt-1"><div>Total</div><div id="gs-total">${money(total)}</div></div>
+        </div>
+        <button id="gs-submit" class="mt-3 w-full bg-blue-600 text-white py-2 rounded ${subtotal===0?'opacity-50':''}" ${subtotal===0?'disabled':''}>Submit group order</button>
+      `
+      // Listeners
+      const typeEl = document.getElementById('gs-type')
+      if (typeEl) typeEl.addEventListener('change', () => { gc.type = typeEl.value; if (gc.type==='pickup') gc.quote=null; renderSubmit() })
+      const tipEl = document.getElementById('gs-tip')
+      if (tipEl) tipEl.addEventListener('change', () => { const v = Number((tipEl.value||'0')); gc.tip_cents = Math.max(0, Math.round(v*100)); renderSubmit() })
+      document.querySelectorAll('[data-gs-tip]').forEach(btn => btn.addEventListener('click', () => {
+        const pct = Number(btn.getAttribute('data-gs-tip')||'0')
+        gc.tip_cents = Math.round(subtotal * (pct/100))
+        const tipInput = document.getElementById('gs-tip')
+        if (tipInput) tipInput.value = (gc.tip_cents/100).toFixed(2)
+        renderSubmit()
+      }))
+      const applyEl = document.getElementById('gs-apply')
+      if (applyEl) applyEl.addEventListener('click', () => { gc.promo_code = (document.getElementById('gs-promo')).value; renderSubmit() })
+      const usePtsEl = document.getElementById('gs-use-points')
+      if (usePtsEl) usePtsEl.addEventListener('change', () => { gc.use_points = usePtsEl.checked; renderSubmit() })
+      const ptsEl = document.getElementById('gs-points')
+      if (ptsEl) ptsEl.addEventListener('change', () => { gc.loyalty_points = Math.max(0, Math.floor(Number((ptsEl.value||0)))); })
+      const maxEl = document.getElementById('gs-max')
+      if (maxEl) maxEl.addEventListener('click', () => {
+        gc.use_points = true
+        const promoDisc = (gc.promo_code||'').toUpperCase()==='SAVE10' ? Math.min(Math.round(subtotal*0.1), 500) : 0
+        const maxBySubtotal = Math.max(0, subtotal - promoDisc)
+        const avail = Math.max(0, Math.floor(Number(state.groupLoyalty||0)))
+        gc.loyalty_points = Math.max(0, Math.min(avail, maxBySubtotal))
+        renderSubmit()
+      })
+      const quoteBtn = document.getElementById('gs-quote')
+      if (quoteBtn) quoteBtn.addEventListener('click', async () => {
+        const km = Number((document.getElementById('gs-distance')).value || 0)
+        gc.distance_km = (document.getElementById('gs-distance')).value
+        gc.quote = await api.quote({ vendor_id: vendorId, distance_km: km })
+        renderSubmit()
+      })
+      const submitBtn = document.getElementById('gs-submit')
+      if (submitBtn) submitBtn.addEventListener('click', async () => {
+        const payload = {
+          type: gc.type,
+          tip_cents: Math.max(0, Math.round(Number(((document.getElementById('gs-tip')||{value:'0'}).value||'0'))*100)),
+          promo_code: (document.getElementById('gs-promo')||{value:''}).value,
+          loyalty_points: gc.use_points ? Math.max(0, Math.floor(Number((document.getElementById('gs-points')||{value:0}).value||0))) : 0
+        }
+        if (gc.type === 'delivery') {
+          const km = Number(gc.distance_km || 0)
+          if (!Number.isNaN(km) && km > 0) payload.distance_km = km
+        }
+        const res = await api.groupSubmit(code, payload)
+        if (!res.order) { alert(res.error || 'Submit failed'); return }
+        const details = await api.getOrder(res.order.id)
+        state.lastOrder = details
+        try {
+          const loy = await api.getLoyalty(vendorId)
+          state.groupLoyalty = Math.max(0, Number(loy.points||0))
+          state.loyalty = state.groupLoyalty // also reflect in vendor view
+        } catch {}
+        renderOrderSummary(details)
+      })
+    }
+    renderSubmit()
+  }
+  refresh()
+
+  document.getElementById('gi-add').onclick = async () => {
+    const itemId = Number((document.getElementById('gi-item')).value||0)
+    const qty = Math.max(1, Number((document.getElementById('gi-qty')).value||1))
+    const user_name = (document.getElementById('gi-name')).value||''
+    if (!itemId) return
+    await api.groupAdd(code, { item_id: itemId, qty, user_name })
+    refresh()
   }
 }
 
