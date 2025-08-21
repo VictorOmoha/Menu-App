@@ -31,7 +31,7 @@ app.get('/', (c) => {
     <div>
       {/* Top Nav */}
       <header class="bg-white border-b">
-        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div class="text-xl font-semibold">Menu</div>
           <nav class="hidden md:flex items-center gap-6 text-sm text-gray-700">
             <a href="#how" class="hover:text-gray-900">How it Works</a>
@@ -46,44 +46,44 @@ app.get('/', (c) => {
       </header>
 
       {/* Hero */}
-      <section class="relative">
+      <section class="relative min-h-[560px] md:min-h-[640px]">
         <div class="absolute inset-0">
           <img src={heroImage} alt="food hero" class="w-full h-full object-cover" />
-          <div class="absolute inset-0 bg-black/40"></div>
+          <div class="absolute inset-0 bg-gradient-to-b from-black/60 to-black/30"></div>
         </div>
-        <div class="relative max-w-6xl mx-auto px-4 py-20 md:py-28 text-white">
-          <h1 class="text-4xl md:text-5xl font-bold max-w-3xl">Discover Local Flavors</h1>
-          <p class="mt-2 text-lg md:text-xl opacity-90">From street vendors to fine dining. Find amazing food from restaurants, food trucks, home chefs, and local vendors in your area.</p>
-          <div class="mt-6 flex items-center gap-3">
-            <a href="#app" class="px-5 py-3 bg-white text-gray-900 rounded font-semibold">Get Started</a>
-            <a href="#getapp" class="px-5 py-3 bg-transparent border border-white/70 rounded">Download App</a>
+        <div class="relative max-w-7xl mx-auto px-6 py-24 md:py-36 text-white">
+          <h1 class="text-5xl md:text-6xl font-bold max-w-3xl hero-shadow">Discover Local Flavors</h1>
+          <p class="mt-4 md:mt-6 text-lg md:text-xl opacity-90">From street vendors to fine dining. Find amazing food from restaurants, food trucks, home chefs, and local vendors in your area.</p>
+          <div class="mt-8 flex items-center gap-3">
+            <a id="cta-get-started" href="#browse" class="px-5 py-3 bg-white text-gray-900 rounded font-semibold">Get Started</a>
+            <a id="cta-download" href="#getapp" class="px-5 py-3 bg-transparent border border-white/70 rounded">Download App</a>
           </div>
 
           {/* Categories Card */}
-          <div class="mt-10 bg-white/95 backdrop-blur-sm text-gray-900 rounded-xl shadow p-4 md:p-6 max-w-4xl">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div class="flex items-start gap-3">
+          <div class="mt-12 md:mt-16 bg-white/95 backdrop-blur-sm text-gray-900 rounded-2xl shadow-xl p-6 md:p-8 max-w-4xl md:max-w-5xl">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+              <div class="flex items-start gap-4">
                 <div class="text-black"><i class="fa-solid fa-utensils"></i></div>
                 <div>
                   <div class="font-semibold">Restaurants</div>
                   <div class="text-xs text-gray-500">Browse menus from local restaurants</div>
                 </div>
               </div>
-              <div class="flex items-start gap-3">
+              <div class="flex items-start gap-4">
                 <div class="text-black"><i class="fa-solid fa-truck"></i></div>
                 <div>
                   <div class="font-semibold">Food Trucks</div>
                   <div class="text-xs text-gray-500">Track live locations and menus</div>
                 </div>
               </div>
-              <div class="flex items-start gap-3">
+              <div class="flex items-start gap-4">
                 <div class="text-black"><i class="fa-solid fa-kitchen-set"></i></div>
                 <div>
                   <div class="font-semibold">Home Chefs</div>
                   <div class="text-xs text-gray-500">Authentic homemade meals</div>
                 </div>
               </div>
-              <div class="flex items-start gap-3">
+              <div class="flex items-start gap-4">
                 <div class="text-black"><i class="fa-solid fa-bread-slice"></i></div>
                 <div>
                   <div class="font-semibold">Bakeries & More</div>
@@ -97,9 +97,9 @@ app.get('/', (c) => {
 
       {/* How It Works */}
       <section id="how" class="bg-white">
-        <div class="max-w-6xl mx-auto px-4 py-12">
-          <h2 class="text-2xl md:text-3xl font-bold">How It Works</h2>
-          <div class="mt-6 grid md:grid-cols-3 gap-8 text-sm">
+        <div class="max-w-7xl mx-auto px-6 py-16 md:py-20">
+          <h2 class="text-3xl md:text-4xl font-bold">How It Works</h2>
+          <div class="mt-8 grid md:grid-cols-3 gap-10 text-sm">
             <div>
               <div class="text-lg font-semibold">1. Discover</div>
               <p class="text-gray-600">Find local food vendors near you</p>
@@ -118,12 +118,12 @@ app.get('/', (c) => {
 
       {/* Vendors CTA */}
       <section id="vendors" class="bg-gray-50">
-        <div class="max-w-6xl mx-auto px-4 py-12 grid md:grid-cols-3 gap-6 items-stretch">
+        <div class="max-w-7xl mx-auto px-6 py-16 md:py-20 grid md:grid-cols-3 gap-8 items-stretch">
           <div class="md:col-span-2">
             <h3 class="text-xl font-semibold">Grow your business with Menu</h3>
             <p class="mt-2 text-gray-600">Join our platform to reach new customers and manage orders, menus, loyalty, group orders and more.</p>
           </div>
-          <div class="bg-white rounded-xl shadow p-6">
+          <div class="bg-white rounded-2xl shadow-lg p-8">
             <div class="text-lg font-semibold">For Vendors</div>
             <p class="mt-2 text-sm text-gray-600">Grow your business with Menu</p>
             <a href="#join" class="mt-4 inline-block px-4 py-2 bg-black text-white rounded">Join as Vendor</a>
@@ -132,10 +132,10 @@ app.get('/', (c) => {
       </section>
 
       {/* Dynamic vendor browser mounts here */}
-      <section id="browse" class="bg-white border-t">
-        <div class="max-w-6xl mx-auto px-4 py-10">
-          <h2 class="text-xl font-semibold mb-3">Explore vendors near you</h2>
-          <div id="app" class="space-y-3"></div>
+      <section id="browse" class="bg-gray-50 border-t">
+        <div class="max-w-7xl mx-auto px-6 py-16 md:py-20">
+          <h2 class="text-2xl md:text-3xl font-bold mb-6">Explore vendors near you</h2>
+          <div id="app" class="space-y-4 md:space-y-6"></div>
         </div>
       </section>
     </div>

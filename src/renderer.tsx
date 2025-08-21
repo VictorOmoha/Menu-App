@@ -11,7 +11,7 @@ export const renderer = jsxRenderer(({ children }) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet" />
         <link href="/static/style.css" rel="stylesheet" />
       </head>
-      <body class="bg-gray-100">
+      <body class="bg-white">
         {children}
         <script src="/static/app.js"></script>
       </body>

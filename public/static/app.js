@@ -59,10 +59,10 @@ function renderHome(){
   const el = document.getElementById('app')
   const f = state.filters
   el.innerHTML = `
-    <div class="space-y-3">
-      <div class="bg-white p-3 rounded shadow">
-        <div class="grid md:grid-cols-6 gap-2">
-          <input id="f-q" class="border rounded p-2" placeholder="Search" value="${f.q}">
+    <div class="space-y-4 md:space-y-6">
+      <div class="bg-white p-4 md:p-5 rounded shadow">
+        <div class="grid md:grid-cols-6 gap-3 md:gap-4">
+          <input id="f-q" class="border rounded p-2" placeholder="Search vendors or items" value="${f.q}">
           <select id="f-type" class="border rounded p-2">
             <option value="">All types</option>
             <option value="restaurant" ${f.type==='restaurant'?'selected':''}>Restaurant</option>
@@ -84,7 +84,7 @@ function renderHome(){
         </div>
       </div>
       ${state.vendors.map(v => `
-        <div class="p-4 bg-white rounded shadow flex items-center justify-between">
+        <div class="p-5 bg-white rounded shadow flex items-center justify-between">
           <div>
             <div class="font-semibold text-lg">${v.org_name}</div>
             <div class="text-sm text-gray-500">${v.type} • ${v.rating_avg?.toFixed?.(1) || '0.0'} ⭐ (${v.rating_count||0})${v.distance_km!=null?` • ${v.distance_km} km`:''}${v.open_now?` • Open`:''}</div>
@@ -130,12 +130,12 @@ function calcSubtotal(){
 function renderVendor(){
   const el = document.getElementById('app')
   el.innerHTML = `
-    <div class="mb-4 flex items-center gap-2">
+    <div class="mb-5 md:mb-6 flex items-center gap-3">
       <button id="back" class="text-blue-600">← Back</button>
       <h2 class="text-2xl font-bold">${state.vendor.vendor.org_name}</h2>
       <span class="text-sm text-gray-600">${(state.vendor.vendor.rating_avg||0).toFixed(1)} ⭐ (${state.vendor.vendor.rating_count||0})</span>
     </div>
-    <div class="grid md:grid-cols-3 gap-6">
+    <div class="grid md:grid-cols-3 gap-6 md:gap-8">
       <div class="md:col-span-2 space-y-4">
         ${state.menu.map(sec => `
           <div class="bg-white rounded shadow">
@@ -157,7 +157,7 @@ function renderVendor(){
           </div>
         `).join('')}
       </div>
-      <div class="bg-white rounded shadow p-4">
+      <div class="bg-white rounded shadow p-5">
         <div class="font-semibold mb-2">Cart</div>
         <div id="cart-items" class="space-y-2">
           ${state.cart.items.map(ci => `<div class="flex justify-between"><div>${ci.name} × ${ci.qty}</div><div>${money(ci.line_total)}</div></div>`).join('')}
@@ -222,7 +222,7 @@ function renderVendor(){
         <button id="checkout" class="mt-3 w-full bg-blue-600 text-white py-2 rounded disabled:opacity-50" ${state.cart.items.length===0?'disabled':''}>Place order</button>
         <div id="order-status" class="text-sm text-gray-600 mt-2"></div>
       </div>
-      <div class="bg-white rounded shadow p-4">
+      <div class="bg-white rounded shadow p-5">
         <div class="flex items-center justify-between mb-2">
           <div class="font-semibold">Reviews</div>
           <button id="rv-new" class="px-2 py-1 text-sm border rounded">Write a review</button>
@@ -232,7 +232,7 @@ function renderVendor(){
         </div>
       </div>
 
-      <div class="bg-white rounded shadow p-4">
+      <div class="bg-white rounded shadow p-5">
         <div class="flex items-center justify-between mb-2">
           <div class="font-semibold">Group order</div>
         </div>
@@ -250,7 +250,7 @@ function renderVendor(){
         </div>
       </div>
 
-      <div class="bg-white rounded shadow p-4">
+      <div class="bg-white rounded shadow p-5">
         <div class="flex items-center justify-between mb-2">
           <div class="font-semibold">Your reservations</div>
           <button id="rs-new" class="px-2 py-1 text-sm border rounded">Reserve</button>
@@ -753,11 +753,11 @@ function renderOrderSummary(details){
   const baseFee = order.type === 'delivery' ? 399 : 99
   const deliveryQuote = order.type === 'delivery' ? Math.max(0, order.fees - baseFee) : 0
   el.innerHTML = `
-    <div class="max-w-2xl mx-auto space-y-3">
+    <div class="max-w-2xl mx-auto space-y-4 md:space-y-6">
       <div>
         <button id="back-home" class="text-blue-600">← Back to Home</button>
       </div>
-      <div class="bg-white rounded shadow p-4">
+      <div class="bg-white rounded shadow p-5">
         <div class="flex items-center justify-between">
           <div class="font-semibold text-lg">Order #${order.id}</div>
           <div class="text-sm text-gray-600">Status: <span id="ord-status">${order.status}</span><span id="ord-eta">${order.eta?` • ETA: ${order.eta}`:''}</span></div>
@@ -819,18 +819,18 @@ function renderGroup(code){
   state.groupCode = code
   const el = document.getElementById('app')
   el.innerHTML = `
-    <div class="max-w-3xl mx-auto space-y-3">
+    <div class="max-w-3xl mx-auto space-y-4 md:space-y-6">
       <div>
         <button id="back-vendor" class="text-blue-600">← Back to Vendor</button>
       </div>
-      <div class="bg-white rounded shadow p-4">
+      <div class="bg-white rounded shadow p-5">
         <div class="flex items-center justify-between">
           <div class="font-semibold text-lg">Group: <span class="font-mono">${code}</span></div>
           <div class="text-sm text-gray-500">Vendor: ${state.vendor?.vendor?.org_name || ''} • ${(state.vendor?.vendor?.rating_avg||0).toFixed(1)} ⭐ (${state.vendor?.vendor?.rating_count||0})</div>
         </div>
         <div id="go-body" class="mt-3 text-sm text-gray-600">Loading…</div>
       </div>
-      <div class="bg-white rounded shadow p-4">
+      <div class="bg-white rounded shadow p-5">
         <div class="font-semibold mb-2">Add item to group</div>
         <div class="text-xs text-gray-600 mb-2">Use the menu on the vendor page to pick items and note the ID; for MVP we quickly add by item ID.</div>
         <div class="flex items-center gap-2">
@@ -840,11 +840,11 @@ function renderGroup(code){
           <button id="gi-add" class="px-2 py-1 border rounded">Add</button>
         </div>
       </div>
-      <div class="bg-white rounded shadow p-4">
+      <div class="bg-white rounded shadow p-5">
         <div class="font-semibold mb-2">Browse menu</div>
         <div id="gm-sections" class="space-y-3 text-sm">Loading menu…</div>
       </div>
-      <div id="gs-panel" class="bg-white rounded shadow p-4">
+      <div id="gs-panel" class="bg-white rounded shadow p-5">
         Loading submit panel…
       </div>
     </div>
@@ -1066,4 +1066,15 @@ function renderGroup(code){
   }
 }
 
-window.addEventListener('DOMContentLoaded', loadVendors)
+window.addEventListener('DOMContentLoaded', () => {
+  loadVendors()
+  // Smooth-scroll CTAs if present
+  const go = (id)=>{
+    const el = document.querySelector(id)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  const gs = document.getElementById('cta-get-started')
+  if (gs) gs.addEventListener('click', (e)=>{ e.preventDefault(); go('#browse') })
+  const dl = document.getElementById('cta-download')
+  if (dl) dl.addEventListener('click', (e)=>{ e.preventDefault(); go('#browse') })
+})
