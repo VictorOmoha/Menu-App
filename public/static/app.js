@@ -2,6 +2,7 @@
 const api = {
   getVendors: () => fetch('/api/vendors').then(r=>r.json()),
   getVendor: (id) => fetch(`/api/vendors/${id}`).then(r=>r.json()),
+  getLoyalty: (vendorId) => fetch(`/api/vendors/${vendorId}/loyalty`).then(r=>r.json()),
   getMenus: (id) => fetch(`/api/vendors/${id}/menus`).then(r=>r.json()),
   getItemOptions: (id) => fetch(`/api/items/${id}/options`).then(r=>r.json()),
   getReviews: (vendorId) => fetch(`/api/vendors/${vendorId}/reviews`).then(r=>r.json()),
@@ -19,11 +20,12 @@ const state = {
   menu: [],
   cart: { vendor_id: null, items: [] },
   filters: { q: '', type: '', pickup: false, delivery: false, open_now: false, sort: 'rating', near: null, max_km: '' },
-  checkout: { type: 'pickup', tip_cents: 0, promo_code: '', quote: null, distance_km: '' },
+  checkout: { type: 'pickup', tip_cents: 0, promo_code: '', quote: null, distance_km: '', use_points: false, loyalty_points: 0 },
   lastOrder: null,
   orderPoll: null,
   reviews: [],
-  reservations: []
+  reservations: [],
+  loyalty: 0
 }
 
 function money(cents){ return `$${(cents/100).toFixed(2)}` }
@@ -103,9 +105,11 @@ function renderHome(){
     const menus = await api.getMenus(id)
     const revs = await api.getReviews(id)
     const resv = await api.getReservations(id)
+    const loy = await api.getLoyalty(id)
     state.menu = menus.sections
     state.reviews = revs.reviews || []
     state.reservations = resv.reservations || []
+    state.loyalty = loy.points || 0
     state.cart = { vendor_id: +id, items: [] }
     renderVendor()
   }))
@@ -181,6 +185,15 @@ function renderVendor(){
             ${state.checkout.promo_code ? ((state.checkout.promo_code||'').toUpperCase()==='SAVE10' ? 'SAVE10 applied: 10% up to $5' : 'Invalid code') : ''}
           </div>
         </div>
+        <div class="mt-2 space-y-2 text-sm">
+          <div class="flex items-center justify-between">
+            <label class="inline-flex items-center gap-2">
+              <input id="ck-use-points" type="checkbox" ${state.checkout.use_points?'checked':''}>
+              <span>Use loyalty points (${state.loyalty||0} pts)</span>
+            </label>
+            <input id="ck-points" class="border rounded p-1 w-28" placeholder="points" value="${state.checkout.loyalty_points||0}" ${state.checkout.use_points?'':'disabled'} />
+          </div>
+        </div>
         <div class="border-t mt-2 pt-2 space-y-1 text-sm">
           <div class="flex justify-between"><div>Subtotal</div><div id="subtotal">${money(calcSubtotal())}</div></div>
           <div class="flex justify-between"><div>Taxes (8%)</div><div id="ck-taxes"></div></div>
@@ -192,6 +205,7 @@ function renderVendor(){
           `}
           <div class="flex justify-between"><div>Tip</div><div id="ck-tip-view"></div></div>
           <div class="flex justify-between"><div>Discount</div><div id="ck-discount"></div></div>
+          ${state.checkout.use_points && state.checkout.loyalty_points ? `<div class="flex justify-between text-xs text-gray-600"><div>Loyalty applied</div><div id="ck-loyalty-applied"></div></div>`:''}
           <div class="flex justify-between font-semibold border-t pt-1"><div>Total</div><div id="ck-total"></div></div>
         </div>
         <button id="checkout" class="mt-3 w-full bg-blue-600 text-white py-2 rounded disabled:opacity-50" ${state.cart.items.length===0?'disabled':''}>Place order</button>
@@ -329,7 +343,15 @@ function renderVendor(){
   const fees = baseFees + quoteFee
   const tipCents = Math.max(0, Math.round(Number(((document.getElementById('ck-tip')||{value:'0'}).value||'0'))*100))
   const subtotal = calcSubtotal()
-  const discount = (state.checkout.promo_code||'').toUpperCase()==='SAVE10' ? Math.min(Math.round(subtotal*0.1), 500) : 0
+  let discount = (state.checkout.promo_code||'').toUpperCase()==='SAVE10' ? Math.min(Math.round(subtotal*0.1), 500) : 0
+  let loyaltyApplied = 0
+  if (state.checkout.use_points) {
+    const req = Math.max(0, Math.floor(Number(state.checkout.loyalty_points||0)))
+    const avail = Math.max(0, Math.floor(Number(state.loyalty||0)))
+    const maxBySubtotal = Math.max(0, subtotal - discount)
+    loyaltyApplied = Math.max(0, Math.min(req, avail, maxBySubtotal))
+    discount += loyaltyApplied
+  }
   const total = Math.max(0, subtotal + tax + fees + tipCents - discount)
   document.getElementById('ck-taxes').textContent = money(tax)
   if (state.checkout.type==='delivery') {
@@ -344,6 +366,8 @@ function renderVendor(){
   }
   document.getElementById('ck-tip-view').textContent = money(tipCents)
   document.getElementById('ck-discount').textContent = discount?`- ${money(discount)}`:'- $0.00'
+  const loyEl = document.getElementById('ck-loyalty-applied')
+  if (loyEl) loyEl.textContent = loyaltyApplied ? `- ${money(loyaltyApplied)}` : ''
   document.getElementById('ck-total').textContent = money(total)
 
   const recalc = async (ev) => {
@@ -359,6 +383,14 @@ function renderVendor(){
       const val = Number((document.getElementById('ck-tip')).value || 0)
       state.checkout.tip_cents = Math.max(0, Math.round(val*100))
     }
+    if (ev && ev.target && ev.target.id === 'ck-use-points') {
+      state.checkout.use_points = (document.getElementById('ck-use-points')).checked
+      renderVendor(); return
+    }
+    if (ev && ev.target && ev.target.id === 'ck-points') {
+      const pts = Math.max(0, Math.floor(Number((document.getElementById('ck-points')).value||0)))
+      state.checkout.loyalty_points = pts
+    }
     if (ev && ev.target && ev.target.id === 'ck-quote') {
       const km = Number((document.getElementById('ck-distance')).value || 0)
       state.checkout.distance_km = (document.getElementById('ck-distance')).value
@@ -367,7 +399,7 @@ function renderVendor(){
     }
     renderVendor()
   }
-  ;['ck-type','ck-apply','ck-tip','ck-quote'].forEach(id => {
+  ;['ck-type','ck-apply','ck-tip','ck-quote','ck-use-points','ck-points'].forEach(id => {
     const el = document.getElementById(id)
     if (el) el.addEventListener('click', recalc)
   })
@@ -402,7 +434,8 @@ function renderVendor(){
       type: state.checkout.type,
       items: state.cart.items.map(i => ({ item_id: i.item_id, qty: i.qty, selected_options: i.selected_options })),
       tip_cents: Math.max(0, Math.round(Number(((document.getElementById('ck-tip')||{value:'0'}).value||'0'))*100)),
-      promo_code: (document.getElementById('ck-promo')||{value:''}).value
+      promo_code: (document.getElementById('ck-promo')||{value:''}).value,
+      loyalty_points: state.checkout.use_points ? Math.max(0, Math.floor(Number((document.getElementById('ck-points')||{value:0}).value||0))) : 0
     }
     if (state.checkout.type === 'delivery') {
       const km = Number(state.checkout.distance_km || 0)

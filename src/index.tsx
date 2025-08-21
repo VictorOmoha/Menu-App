@@ -607,7 +607,7 @@ app.post('/api/orders', async (c) => {
   type ItemReq = { item_id: number; qty: number; selected_options?: number[] }
   const body = await c
     .req
-    .json<{ vendor_id: number; type: string; items: ItemReq[]; user_id?: number; tip_cents?: number; promo_code?: string; distance_km?: number }>({ vendor_id: 0, type: 'pickup', items: [] } as any)
+    .json<{ vendor_id: number; type: string; items: ItemReq[]; user_id?: number; tip_cents?: number; promo_code?: string; distance_km?: number; loyalty_points?: number }>({ vendor_id: 0, type: 'pickup', items: [] } as any)
   const userId = body.user_id ?? 1 // demo user
   const vendorId = body.vendor_id
   const type = body.type === 'delivery' ? 'delivery' : 'pickup'
@@ -647,6 +647,16 @@ app.post('/api/orders', async (c) => {
   if (body.promo_code && body.promo_code.toUpperCase() === 'SAVE10') {
     discount = Math.min(Math.round(subtotal * 0.1), 500)
   }
+  // loyalty redemption: 1 point = 1 cent. Cap by available points and subtotal after promo
+  let loyaltyRedeem = 0
+  if (typeof body.loyalty_points === 'number' && body.loyalty_points > 0) {
+    const availRow = await queryOne<{ points: number }>(db, 'SELECT points FROM loyalty WHERE user_id = ? AND vendor_id = ?', [userId, vendorId])
+    const available = Number(availRow?.points || 0)
+    const requested = Math.floor(Number(body.loyalty_points))
+    const maxBySubtotal = Math.max(0, subtotal - discount)
+    loyaltyRedeem = Math.max(0, Math.min(requested, available, maxBySubtotal))
+    discount += loyaltyRedeem
+  }
   const tip = Math.max(0, Number(body.tip_cents || 0))
   const total = Math.max(0, subtotal + taxes + fees + tip - discount)
 
@@ -665,6 +675,18 @@ app.post('/api/orders', async (c) => {
         `INSERT INTO order_items (order_id, item_id, qty, selected_options_json, line_total) VALUES (?, ?, ?, ?, ?)`
       )
       .bind(orderId, it.item_id, it.qty, JSON.stringify(it.selected_options), it.line_total)
+      .run()
+  }
+
+  // Deduct redeemed loyalty points if any
+  if (loyaltyRedeem > 0) {
+    await db
+      .prepare('INSERT OR IGNORE INTO loyalty (user_id, vendor_id, points) VALUES (?, ?, 0)')
+      .bind(userId, vendorId)
+      .run()
+    await db
+      .prepare('UPDATE loyalty SET points = CASE WHEN points >= ? THEN points - ? ELSE 0 END WHERE user_id = ? AND vendor_id = ?')
+      .bind(loyaltyRedeem, loyaltyRedeem, userId, vendorId)
       .run()
   }
 
