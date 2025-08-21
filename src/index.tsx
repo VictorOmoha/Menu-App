@@ -543,7 +543,7 @@ app.post('/api/orders', async (c) => {
   type ItemReq = { item_id: number; qty: number; selected_options?: number[] }
   const body = await c
     .req
-    .json<{ vendor_id: number; type: string; items: ItemReq[]; user_id?: number; tip_cents?: number; promo_code?: string }>({ vendor_id: 0, type: 'pickup', items: [] } as any)
+    .json<{ vendor_id: number; type: string; items: ItemReq[]; user_id?: number; tip_cents?: number; promo_code?: string; distance_km?: number }>({ vendor_id: 0, type: 'pickup', items: [] } as any)
   const userId = body.user_id ?? 1 // demo user
   const vendorId = body.vendor_id
   const type = body.type === 'delivery' ? 'delivery' : 'pickup'
@@ -569,7 +569,15 @@ app.post('/api/orders', async (c) => {
     pricedItems.push({ item_id: row.id, qty, unit_price: unit, line_total: line, selected_options: opts, name: row.name })
   }
   const taxes = Math.round(subtotal * 0.08)
-  const fees = type === 'delivery' ? 399 : 99
+  let fees = type === 'delivery' ? 399 : 99
+  let etaStr: string | null = null
+  if (type === 'delivery' && typeof body.distance_km === 'number' && !Number.isNaN(body.distance_km) && body.distance_km > 0) {
+    const km = Math.max(0, Number(body.distance_km))
+    const quoteFee = Math.round(199 + km * 80)
+    fees += quoteFee
+    const eta_minutes = 30 + Math.round(km * 4)
+    etaStr = `${eta_minutes}m`
+  }
   // promo: simple demo - SAVE10 gives 10% off up to $5
   let discount = 0
   if (body.promo_code && body.promo_code.toUpperCase() === 'SAVE10') {
@@ -581,9 +589,9 @@ app.post('/api/orders', async (c) => {
   // create order
   const orderRes = await db
     .prepare(
-      `INSERT INTO orders (user_id, vendor_id, type, subtotal, taxes, fees, tip, total, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Submitted')`
+      `INSERT INTO orders (user_id, vendor_id, type, subtotal, taxes, fees, tip, total, status, eta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Submitted', ?)`
     )
-    .bind(userId, vendorId, type, subtotal - discount, taxes, fees, tip, total)
+    .bind(userId, vendorId, type, subtotal - discount, taxes, fees, tip, total, etaStr)
     .run()
   const orderId = Number(orderRes.meta.last_row_id)
 
@@ -605,7 +613,7 @@ app.get('/api/orders/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const order = await queryOne<any>(db, 'SELECT * FROM orders WHERE id = ?', [id])
   if (!order) return c.notFound()
-  const items = await queryAll<any>(db, 'SELECT * FROM order_items WHERE order_id = ?', [id])
+  const items = await queryAll<any>(db, 'SELECT oi.*, mi.name AS item_name FROM order_items oi JOIN menu_items mi ON mi.id = oi.item_id WHERE oi.order_id = ?', [id])
   return c.json({ order, items })
 })
 
