@@ -179,7 +179,10 @@ function renderVendor(){
           ` : ''}
           <div class="flex items-center justify-between">
             <input id="ck-promo" class="border rounded p-1 w-32" placeholder="Promo code" value="${state.checkout.promo_code||''}" />
-            <button id="ck-apply" class="px-2 py-1 border rounded">Apply</button>
+            <div class="flex items-center gap-2">
+              <button id="ck-max" class="px-2 py-1 border rounded text-xs">Max</button>
+              <button id="ck-apply" class="px-2 py-1 border rounded">Apply</button>
+            </div>
           </div>
           <div id="ck-promo-msg" class="text-xs ${state.checkout.promo_code ? ((state.checkout.promo_code||'').toUpperCase()==='SAVE10' ? 'text-emerald-700':'text-red-600') : 'text-gray-500'}">
             ${state.checkout.promo_code ? ((state.checkout.promo_code||'').toUpperCase()==='SAVE10' ? 'SAVE10 applied: 10% up to $5' : 'Invalid code') : ''}
@@ -391,6 +394,17 @@ function renderVendor(){
       const pts = Math.max(0, Math.floor(Number((document.getElementById('ck-points')).value||0)))
       state.checkout.loyalty_points = pts
     }
+    if (ev && ev.target && ev.target.id === 'ck-max') {
+      // Fill points with max allowed
+      state.checkout.use_points = true
+      const subtotal = calcSubtotal()
+      let discount = (state.checkout.promo_code||'').toUpperCase()==='SAVE10' ? Math.min(Math.round(subtotal*0.1), 500) : 0
+      const maxBySubtotal = Math.max(0, subtotal - discount)
+      const avail = Math.max(0, Math.floor(Number(state.loyalty||0)))
+      const pts = Math.max(0, Math.min(avail, maxBySubtotal))
+      state.checkout.loyalty_points = pts
+      renderVendor(); return
+    }
     if (ev && ev.target && ev.target.id === 'ck-quote') {
       const km = Number((document.getElementById('ck-distance')).value || 0)
       state.checkout.distance_km = (document.getElementById('ck-distance')).value
@@ -399,7 +413,7 @@ function renderVendor(){
     }
     renderVendor()
   }
-  ;['ck-type','ck-apply','ck-tip','ck-quote','ck-use-points','ck-points'].forEach(id => {
+  ;['ck-type','ck-apply','ck-tip','ck-quote','ck-use-points','ck-points','ck-max'].forEach(id => {
     const el = document.getElementById(id)
     if (el) el.addEventListener('click', recalc)
   })

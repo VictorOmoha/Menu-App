@@ -279,6 +279,38 @@ async function ensureSchemaAndSeed(db: D1Database) {
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_vendor_id ON reviews(vendor_id)`).run()
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id)`).run()
 
+  // Group Orders
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS group_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vendor_id INTEGER NOT NULL,
+        code TEXT UNIQUE NOT NULL,
+        owner_user_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`
+    )
+    .run()
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_group_orders_vendor_id ON group_orders(vendor_id)`).run()
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS group_order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        user_id INTEGER,
+        user_name TEXT,
+        item_id INTEGER NOT NULL,
+        qty INTEGER NOT NULL,
+        selected_options_json TEXT,
+        line_total INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (group_id) REFERENCES group_orders(id)
+      )`
+    )
+    .run()
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_group_order_items_group_id ON group_order_items(group_id)`).run()
+
   // Loyalty table (per user/vendor)
   await db
     .prepare(
@@ -590,6 +622,141 @@ app.post('/api/payments/intent', async (c) => {
   if (amount <= 0) return c.json({ error: 'amount required' }, 400)
   // In production, call Stripe/Adyen to create PaymentIntent and return client_secret
   return c.json({ provider: 'test', client_secret: `test_secret_${amount}_${currency}` })
+})
+
+// ---------- Group Orders ----------
+function randomCode(len = 6) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let s = ''
+  for (let i=0;i<len;i++) s += chars[Math.floor(Math.random()*chars.length)]
+  return s
+}
+
+app.post('/api/group/start', async (c) => {
+  const db = c.env.DB
+  const body = await c.req.json<{ vendor_id: number; user_id?: number }>().catch(()=>({vendor_id:0}))
+  const vendorId = Number(body.vendor_id||0)
+  if (!vendorId) return c.json({ error: 'vendor_id required' }, 400)
+  const userId = body.user_id ?? 1
+  // generate unique code
+  let code = ''
+  for (let i=0;i<5;i++) {
+    code = randomCode(6)
+    const exists = await queryOne<{id:number}>(db, 'SELECT id FROM group_orders WHERE code = ?', [code])
+    if (!exists) break
+  }
+  if (!code) return c.json({ error: 'unable_to_allocate_code' }, 500)
+  const res = await db.prepare('INSERT INTO group_orders (vendor_id, code, owner_user_id, status) VALUES (?, ?, ?, "open")')
+    .bind(vendorId, code, userId).run()
+  return c.json({ group_id: Number(res.meta.last_row_id), code, vendor_id: vendorId, status: 'open' })
+})
+
+app.get('/api/group/:code', async (c) => {
+  const db = c.env.DB
+  const code = c.req.param('code')
+  const group = await queryOne<any>(db, 'SELECT * FROM group_orders WHERE code = ?', [code])
+  if (!group) return c.notFound()
+  const items = await queryAll<any>(db, 'SELECT * FROM group_order_items WHERE group_id = ? ORDER BY id', [group.id])
+  const subtotal = items.reduce((s, it) => s + (it.line_total||0), 0)
+  return c.json({ group, items, subtotal })
+})
+
+app.post('/api/group/:code/add', async (c) => {
+  const db = c.env.DB
+  const code = c.req.param('code')
+  const group = await queryOne<any>(db, 'SELECT * FROM group_orders WHERE code = ? AND status = "open"', [code])
+  if (!group) return c.json({ error: 'group_not_found_or_closed' }, 404)
+  const body = await c.req.json<{ user_id?: number; user_name?: string; item_id: number; qty: number; selected_options?: number[] }>()
+  const userId = body.user_id ?? 1
+  const userName = (body.user_name || '').trim() || 'Guest'
+  const row = await queryOne<any>(db, 'SELECT id, base_price FROM menu_items WHERE id = ?', [body.item_id])
+  if (!row) return c.json({ error: 'item_not_found' }, 400)
+  let unit = Number(row.base_price||0)
+  const opts = Array.isArray(body.selected_options) ? body.selected_options : []
+  if (opts.length) {
+    const deltas = await queryAll<{ price_delta: number }>(db, `SELECT price_delta FROM options WHERE id IN (${opts.map(()=>'?').join(',')})`, opts as unknown[])
+    unit += deltas.reduce((s,d)=> s + (d.price_delta||0), 0)
+  }
+  const qty = Math.max(1, Number(body.qty||1))
+  const line = unit * qty
+  await db.prepare('INSERT INTO group_order_items (group_id, user_id, user_name, item_id, qty, selected_options_json, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(group.id, userId, userName, body.item_id, qty, JSON.stringify(opts), line).run()
+  const items = await queryAll<any>(db, 'SELECT * FROM group_order_items WHERE group_id = ? ORDER BY id', [group.id])
+  const subtotal = items.reduce((s, it) => s + (it.line_total||0), 0)
+  return c.json({ ok: true, subtotal, count: items.length })
+})
+
+app.post('/api/group/:code/submit', async (c) => {
+  const db = c.env.DB
+  const code = c.req.param('code')
+  const group = await queryOne<any>(db, 'SELECT * FROM group_orders WHERE code = ? AND status = "open"', [code])
+  if (!group) return c.json({ error: 'group_not_found_or_closed' }, 404)
+  const body = await c.req.json<{ type: string; tip_cents?: number; promo_code?: string; distance_km?: number; loyalty_points?: number }>()
+  const userId = group.owner_user_id || 1
+  const vendorId = group.vendor_id
+  const gItems = await queryAll<any>(db, 'SELECT * FROM group_order_items WHERE group_id = ? ORDER BY id', [group.id])
+  if (gItems.length === 0) return c.json({ error: 'empty_group' }, 400)
+
+  // Totals based on stored line totals
+  const subtotal = gItems.reduce((s,it)=> s + (it.line_total||0), 0)
+  const taxes = Math.round(subtotal * 0.08)
+  const type = body.type === 'delivery' ? 'delivery' : 'pickup'
+  let fees = type === 'delivery' ? 399 : 99
+  let etaStr: string | null = null
+  if (type === 'delivery' && typeof body.distance_km === 'number' && !Number.isNaN(body.distance_km) && body.distance_km > 0) {
+    const km = Math.max(0, Number(body.distance_km))
+    const quoteFee = Math.round(199 + km * 80)
+    fees += quoteFee
+    const eta_minutes = 30 + Math.round(km * 4)
+    etaStr = `${eta_minutes}m`
+  }
+  let discount = 0
+  if (body.promo_code && body.promo_code.toUpperCase() === 'SAVE10') {
+    discount = Math.min(Math.round(subtotal * 0.1), 500)
+  }
+  // Loyalty redemption
+  let loyaltyRedeem = 0
+  if (typeof body.loyalty_points === 'number' && body.loyalty_points > 0) {
+    const availRow = await queryOne<{ points: number }>(db, 'SELECT points FROM loyalty WHERE user_id = ? AND vendor_id = ?', [userId, vendorId])
+    const available = Number(availRow?.points || 0)
+    const requested = Math.floor(Number(body.loyalty_points))
+    const maxBySubtotal = Math.max(0, subtotal - discount)
+    loyaltyRedeem = Math.max(0, Math.min(requested, available, maxBySubtotal))
+    discount += loyaltyRedeem
+  }
+  const tip = Math.max(0, Number(body.tip_cents || 0))
+  const total = Math.max(0, subtotal + taxes + fees + tip - discount)
+
+  // Create order
+  const orderRes = await db.prepare(
+    `INSERT INTO orders (user_id, vendor_id, type, subtotal, taxes, fees, tip, total, status, eta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Submitted', ?)`
+  ).bind(userId, vendorId, type, subtotal - (discount), taxes, fees, tip, total, etaStr).run()
+  const orderId = Number(orderRes.meta.last_row_id)
+
+  // Persist order_items (flatten group items)
+  for (const it of gItems) {
+    await db.prepare(`INSERT INTO order_items (order_id, item_id, qty, selected_options_json, line_total) VALUES (?, ?, ?, ?, ?)`) 
+      .bind(orderId, it.item_id, it.qty, it.selected_options_json, it.line_total).run()
+  }
+
+  // Deduct loyalty used
+  if (loyaltyRedeem > 0) {
+    await db.prepare('INSERT OR IGNORE INTO loyalty (user_id, vendor_id, points) VALUES (?, ?, 0)').bind(userId, vendorId).run()
+    await db.prepare('UPDATE loyalty SET points = CASE WHEN points >= ? THEN points - ? ELSE 0 END WHERE user_id = ? AND vendor_id = ?')
+      .bind(loyaltyRedeem, loyaltyRedeem, userId, vendorId).run()
+  }
+  // Award points
+  try {
+    const points = Math.floor(total / 100)
+    await db.prepare(`INSERT INTO loyalty (user_id, vendor_id, points) VALUES (?, ?, ?) ON CONFLICT(user_id, vendor_id) DO UPDATE SET points = points + excluded.points`)
+      .bind(userId, vendorId, points).run()
+  } catch {}
+
+  // Close group
+  await db.prepare('UPDATE group_orders SET status = "submitted" WHERE id = ?').bind(group.id).run()
+
+  const order = await queryOne<any>(db, 'SELECT * FROM orders WHERE id = ?', [orderId])
+  return c.json({ order })
 })
 
 // ---------- Logistics (stub for MVP) ----------
