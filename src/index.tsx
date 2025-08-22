@@ -102,6 +102,8 @@ app.get('/', (c) => {
         </div>
       </section>
 
+      <div class="section-divider my-10"></div>
+
       {/* How It Works */}
       <section id="how" class="bg-white">
         <div class="max-w-7xl mx-auto px-6 py-16 md:py-20">
@@ -122,6 +124,8 @@ app.get('/', (c) => {
           </div>
         </div>
       </section>
+
+      <div class="section-divider my-10"></div>
 
       {/* Vendors CTA */}
       <section id="vendors" class="bg-gray-50">
