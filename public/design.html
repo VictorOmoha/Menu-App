@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design Tokens Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="/static/tokens.css" rel="stylesheet" />
+</head>
+<body class="bg-gray-50 p-6">
+  <div class="max-w-5xl mx-auto space-y-6">
+    <h1 class="text-2xl font-bold">Design Tokens Preview</h1>
+
+    <section class="card">
+      <h2 class="font-semibold mb-2">Buttons</h2>
+      <div class="flex gap-2">
+        <button class="button button-primary">Primary</button>
+        <button class="button button-secondary">Secondary</button>
+        <button class="button button-outline">Outline</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="font-semibold mb-2">Cards</h2>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="card">
+          <div class="font-semibold">Card A</div>
+          <div class="text-sm text-gray-600">Uses --radius-base and --shadow-card.</div>
+        </div>
+        <div class="card">
+          <div class="font-semibold">Card B</div>
+          <div class="text-sm text-gray-600">Tokens can be themed later.</div>
+        </div>
+        <div class="card">
+          <div class="font-semibold">Card C</div>
+          <div class="text-sm text-gray-600">No JS; static preview only.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="font-semibold mb-2">Typography</h2>
+      <div style="font-family: var(--font-sans);">
+        <div class="text-3xl font-bold">Heading 1</div>
+        <div class="text-xl font-semibold">Heading 2</div>
+        <div class="text-base">Body text example with default color.</div>
+        <div class="text-sm text-gray-500">Caption text.</div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

@@ -10,5 +10,11 @@
       "database_name": "webapp-production",
       "database_id": ""
     }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": ""
+    }
   ]
 }

@@ -2,10 +2,15 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { renderer } from './renderer'
 import { serveStatic } from 'hono/cloudflare-workers'
+import { setCookie } from 'hono/cookie'
+import { sign, verify } from 'hono/jwt'
 
 // Types for Cloudflare Bindings
 export type Bindings = {
   DB: D1Database
+  JWT_SECRET?: string
+  KV?: KVNamespace
+  SENTRY_DSN?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -24,10 +29,143 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // Renderer for SSR shell
 app.use(renderer)
 
-// Home route renders landing page (clean marketing page)
-app.get('/', (c) => {
+// ---------- Observability (Sentry minimal) ----------
+async function captureError(c: any, err: unknown, context?: Record<string, unknown>) {
+  try {
+    const dsn = c.env?.SENTRY_DSN
+    if (!dsn) {
+      console.error('[error]', err)
+      return
+    }
+    // Parse DSN: https://{key}@{host}/{project}
+    const u = new URL(dsn)
+    const key = u.username
+    const project = u.pathname.replace(/^\//, '')
+    const host = u.host
+    const endpoint = `https://${host}/api/${project}/store/`
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Sentry-Auth': `Sentry sentry_version=7, sentry_key=${key}, sentry_client=webapp/1.0`
+    }
+    const payload: any = {
+      platform: 'javascript',
+      level: 'error',
+      message: (err as any)?.message || String(err),
+      exception: { values: [{ type: (err as any)?.name || 'Error', value: (err as any)?.stack || String(err) }] },
+      tags: { service: 'webapp' },
+      extra: { context: context || {}, url: c.req?.url },
+      timestamp: Math.floor(Date.now() / 1000)
+    }
+    await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) })
+  } catch (e) {
+    console.error('[sentry-fail]', e)
+  }
+}
 
-  const heroImage = 'https://page.gensparksite.com/v1/base64_upload/5d08717649f52e98bdb4154062ac3323'
+app.onError(async (err, c) => {
+  await captureError(c, err)
+  return c.json({ error: 'internal_error' }, 500)
+})
+
+// ---------- KV Counters Helper ----------
+async function incKV(c: any, key: string, n = 1) {
+  try {
+    const kv = c.env?.KV
+    if (!kv) return
+    const cur = Number((await kv.get(key)) || '0')
+    await kv.put(key, String(cur + n))
+  } catch (e) {
+    console.warn('[kv-inc-fail]', e)
+  }
+}
+
+// ---------- Auth Helpers ----------
+function getJwtSecret(c: any) {
+  return c.env?.JWT_SECRET || 'dev-secret'
+}
+
+async function requireAuth(c: any, next: any) {
+  const h = c.req.header('Authorization') || ''
+  const m = h.match(/^Bearer\s+(.+)$/i)
+  if (!m) return c.json({ error: 'unauthorized' }, 401)
+  try {
+    const payload = await verify(m[1], getJwtSecret(c))
+    c.set('user', payload)
+  } catch {
+    return c.json({ error: 'unauthorized' }, 401)
+  }
+  await next()
+}
+
+async function requireVendor(c: any, next: any) {
+  const user: any = c.get('user')
+  if (!user || (user.role !== 'vendor' && user.role !== 'admin')) {
+    return c.json({ error: 'forbidden' }, 403)
+  }
+  if (!user.vendor_id && user.role === 'vendor') {
+    return c.json({ error: 'vendor_context_required' }, 400)
+  }
+  await next()
+}
+
+// ---------- Auth Endpoints ----------
+app.post('/api/auth/login', async (c) => {
+  try {
+    const body = await c.req.json<{ email: string; role?: string; vendor_id?: number }>()
+    const email = (body.email || '').toLowerCase().trim()
+    if (!email) return c.json({ error: 'email_required' }, 400)
+    const role = (body.role === 'vendor' || body.role === 'admin') ? body.role : 'customer'
+    const vendorId = body.vendor_id && Number(body.vendor_id) > 0 ? Number(body.vendor_id) : undefined
+    // Ensure user row exists (demo behavior)
+    const db = c.env.DB
+    let user = await queryOne<any>(db, 'SELECT * FROM users WHERE email = ?', [email])
+    if (!user) {
+      await db.prepare('INSERT INTO users (email, role) VALUES (?, ?)').bind(email, role).run()
+      user = await queryOne<any>(db, 'SELECT * FROM users WHERE email = ?', [email])
+    }
+    // Issue token
+    const payload: any = { sub: String(user.id), email, role }
+    if (role === 'vendor' && vendorId) payload.vendor_id = vendorId
+    const token = await sign(payload, getJwtSecret(c))
+    return c.json({ token, user: payload })
+  } catch (e) {
+    await captureError(c, e, { route: 'login' })
+    return c.json({ error: 'login_failed' }, 400)
+  }
+})
+
+// Home route renders landing page (clean marketing page)
+app.get('/', async (c) => {
+
+  const heroImage = 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1600&q=80'
+  // A/B hero variant selection with cookie persistence
+  const qp = c.req.query('hero')?.toLowerCase()
+  let heroMode: 'bg' | 'card' | null = (qp === 'bg' || qp === 'card') ? (qp as 'bg'|'card') : null
+  if (!heroMode) {
+    // Bias selection: default 80% background, 20% card
+    let pBg = 0.8
+    const hb = c.req.query('hero_bias')?.toLowerCase()
+    if (hb) {
+      // Accept formats: "bg:80", "card:80", "bg80", "card80", or just number (0-100) for bg
+      const m = hb.match(/^(bg|card)?\s*[:=]?\s*(\d{1,3})$/)
+      if (m) {
+        const target = (m[1] === 'card') ? 'card' : 'bg'
+        let n = Math.max(0, Math.min(100, Number(m[2] || '0')))
+        pBg = target === 'bg' ? (n/100) : (1 - (n/100))
+      } else {
+        const n = Number(hb)
+        if (!Number.isNaN(n)) pBg = Math.max(0, Math.min(1, n > 1 ? n/100 : n))
+      }
+    }
+    heroMode = Math.random() < pBg ? 'bg' : 'card'
+  }
+  // KV: record hero impression for initial render (date bucket)
+  try {
+    const date = new Date().toISOString().slice(0, 10)
+    await incKV(c, `impressions:hero:${heroMode}:${date}`, 1)
+  } catch {}
+
+  // heroMode resolved above via query/randomization
   return c.render(
     <div>
       {/* Top Nav */}
@@ -46,8 +184,63 @@ app.get('/', (c) => {
         </div>
       </header>
 
-      {/* Hero: two-column layout, image not used as background */}
-      <section class="bg-white">
+      {/* Hero section with periodic auto-switching (10–15s). Both variants are rendered and we toggle visibility. */}
+      <section id="hero-bg" class={heroMode === 'card' ? 'hidden relative' : 'relative'}>
+        <div class="absolute inset-0">
+          <img src={heroImage} alt="Assorted foods background" class="w-full h-full object-cover" />
+          <div class="absolute inset-0 bg-black/40"></div>
+        </div>
+        <div class="relative">
+          <div class="max-w-7xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+            {/* Copy */}
+            <div>
+              <h1 class="text-5xl md:text-6xl font-bold text-white hero-shadow">Discover Local Flavors</h1>
+              <p class="mt-4 md:mt-6 text-lg md:text-xl text-gray-100">From street vendors to fine dining. Find amazing food from restaurants, food trucks, home chefs, and local vendors in your area.</p>
+              <div class="mt-8 flex items-center gap-3">
+                <a id="cta-get-started" href="/app" class="px-5 py-3 bg-black text-white rounded font-semibold">Get Started</a>
+                <a id="cta-download" href="#getapp" class="px-5 py-3 border border-white/70 text-white rounded">Download App</a>
+              </div>
+
+              {/* Categories Card */}
+              <div class="mt-10 md:mt-12 bg-white/90 backdrop-blur text-gray-900 rounded-2xl shadow p-6 md:p-8 max-w-4xl">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+                  <div class="flex items-start gap-4">
+                    <div class="text-black"><i class="fa-solid fa-utensils"></i></div>
+                    <div>
+                      <div class="font-semibold">Restaurants</div>
+                      <div class="text-xs text-gray-500">Browse menus from local restaurants</div>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-4">
+                    <div class="text-black"><i class="fa-solid fa-truck"></i></div>
+                    <div>
+                      <div class="font-semibold">Food Trucks</div>
+                      <div class="text-xs text-gray-500">Track live locations and menus</div>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-4">
+                    <div class="text-black"><i class="fa-solid fa-kitchen-set"></i></div>
+                    <div>
+                      <div class="font-semibold">Home Chefs</div>
+                      <div class="text-xs text-gray-500">Authentic homemade meals</div>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-4">
+                    <div class="text-black"><i class="fa-solid fa-bread-slice"></i></div>
+                    <div>
+                      <div class="font-semibold">Bakeries & More</div>
+                      <div class="text-xs text-gray-500">Fresh baked goods and specialty</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Right column spacer */}
+            <div class="hidden md:block"></div>
+          </div>
+        </div>
+      </section>
+      <section id="hero-card" class={heroMode === 'bg' ? 'hidden bg-white' : 'bg-white'}>
         <div class="max-w-7xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-8 md:gap-12 items-center">
           {/* Copy */}
           <div>
@@ -92,15 +285,16 @@ app.get('/', (c) => {
               </div>
             </div>
           </div>
-
-          {/* Visual: use the provided image inside a card, not as background */}
+          {/* Visual: image inside card */}
           <div class="relative">
             <figure class="rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden bg-white">
-              <img src={heroImage} alt="Design preview" class="w-full h-auto object-cover" />
+              <img src={heroImage} alt="Assorted foods" class="w-full h-auto object-cover" />
             </figure>
           </div>
         </div>
       </section>
+      <script src="/static/hero.js"></script>
+
 
       <div class="section-divider my-10"></div>
 
@@ -145,6 +339,12 @@ app.get('/', (c) => {
 
     </div>
   )
+})
+
+// A/B reset route: clears cookie and redirects to home
+app.get('/ab/reset', (c) => {
+  setCookie(c, 'hero', '', { path: '/', maxAge: 0, sameSite: 'Lax' })
+  return c.redirect('/')
 })
 
 // SPA shell route for the app experience
@@ -474,6 +674,54 @@ async function ensureSchemaAndSeed(db: D1Database) {
     .run()
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_reservations_vendor_id ON reservations(vendor_id)`).run()
 }
+
+// ---------- Vendor Onboarding (Protected) ----------
+app.get('/api/vendor/self', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const vendor = await queryOne<any>(db, 'SELECT * FROM vendors WHERE id = ?', [vendorId])
+  if (!vendor) return c.json({ error: 'vendor_not_found' }, 404)
+  const menu = await queryOne<any>(db, 'SELECT * FROM menus WHERE vendor_id = ? ORDER BY last_updated DESC LIMIT 1', [vendorId])
+  return c.json({ vendor, menu })
+})
+
+app.post('/api/vendor/service-modes', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const body = await c.req.json<{ service_modes: any }>().catch(()=>({service_modes:null}))
+  const modes = body.service_modes ? JSON.stringify(body.service_modes) : null
+  if (!modes) return c.json({ error: 'service_modes_required' }, 400)
+  await db.prepare('UPDATE vendors SET service_modes_json = ? WHERE id = ?').bind(modes, vendorId).run()
+  return c.json({ ok: true })
+})
+
+app.post('/api/vendor/menu-skeleton', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  // create a simple menu with one section if none exists
+  const exists = await queryOne<any>(db, 'SELECT id FROM menus WHERE vendor_id = ? LIMIT 1', [vendorId])
+  if (!exists) {
+    const m = await db.prepare('INSERT INTO menus (vendor_id, title, is_active) VALUES (?, ?, 1)').bind(vendorId, 'Main Menu').run()
+    const menuId = Number(m.meta.last_row_id)
+    await db.prepare('INSERT INTO menu_sections (menu_id, name, sort_order) VALUES (?, ?, 1)').bind(menuId, 'Featured', 1).run()
+    return c.json({ ok: true, created: true, menu_id: menuId })
+  }
+  return c.json({ ok: true, created: false, menu_id: exists.id })
+})
+
+// ---------- Metrics endpoint (optional) ----------
+app.post('/api/metrics/ab-hero', async (c) => {
+  const v = (c.req.query('variant') || '').toLowerCase()
+  if (v !== 'bg' && v !== 'card') return c.json({ error: 'invalid_variant' }, 400)
+  try {
+    const date = new Date().toISOString().slice(0, 10)
+    await incKV(c, `impressions:hero:${v}:${date}`, 1)
+  } catch {}
+  return c.json({ ok: true })
+})
 
 // ---------- Utility ----------
 app.get('/api/health', (c) => c.json({ ok: true }))
