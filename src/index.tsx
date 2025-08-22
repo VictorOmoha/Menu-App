@@ -162,6 +162,7 @@ app.get('/app', (c) => {
   )
 })
 
+
 // ---------- Helpers ----------
 async function queryAll<T>(db: D1Database, sql: string, bind: unknown[] = []) {
   return (await db.prepare(sql).bind(...bind).all<T>()).results || []
