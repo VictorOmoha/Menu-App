@@ -8,13 +8,13 @@
     {
       "binding": "DB",
       "database_name": "webapp-production",
-      "database_id": ""
+      "database_id": "a1b81f43-91d5-4647-a11c-9060af8d45f0"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": ""
+      "id": "db4b8b7dcf6e4d1899924d31632ea8ae"
     }
   ]
 }
