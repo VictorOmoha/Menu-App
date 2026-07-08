@@ -225,7 +225,7 @@ app.get('/', async (c) => {
           <div class="p-10 md:p-14 text-white">
             <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight">Grow your business with Menu</h3>
             <p class="mt-3 text-white/80">Reach new customers and manage orders, menus, loyalty, reservations and group orders — all in one place.</p>
-            <a href="/app" class="mt-6 inline-block px-6 py-3 rounded-full text-white text-sm font-bold" style="background:#EB1700">Join as a vendor</a>
+            <a href="/app#/vendor/join" class="mt-6 inline-block px-6 py-3 rounded-full text-white text-sm font-bold" style="background:#EB1700">Join as a vendor</a>
           </div>
           <img src={IMG('1556910103-1c02745aae4d', 900)} alt="Chef preparing food" class="w-full h-64 md:h-full object-cover" />
         </div>
@@ -935,6 +935,64 @@ async function ensureSchemaAndSeed(db: D1Database) {
   await seedRichVendors(db)
 }
 
+// ---------- Vendor Registration ----------
+const CUISINE_DEFAULT_IMG: Record<string, string> = {
+  Mexican: IMG('1565299585323-38d6b0865b47', 1200), Burgers: IMG('1568901346375-23c9450c58cd', 1200),
+  Pizza: IMG('1513104890138-7c749659a591', 1200), Sushi: IMG('1579871494447-9811cf80d66c', 1200),
+  Healthy: IMG('1512621776951-a57141f2eefd', 1200), 'West African': IMG('1512058564366-18510be2db19', 1200),
+  Korean: IMG('1529193591184-b1d58069ecdd', 1200), Chinese: IMG('1585032226651-759b368d7246', 1200),
+  Bakery: IMG('1555507036-ab1f4038808a', 1200), Indian: IMG('1585937421612-70a008356fbe', 1200),
+  Breakfast: IMG('1567620905732-2d1ec7ab7445', 1200), Mediterranean: IMG('1529006557810-274b9b2fc783', 1200),
+}
+const GENERIC_STORE_IMG = IMG('1517248135467-4c7edcad34c4', 1200)
+
+app.post('/api/vendor/register', async (c) => {
+  const db = c.env.DB
+  const body = await c.req.json<{
+    org_name: string; type?: string; cuisine?: string; email: string; phone?: string
+    address?: string; city?: string
+    delivery_fee_cents?: number; price_range?: number
+    service_modes?: { pickup?: boolean; delivery?: boolean; dinein?: boolean }
+    promo_text?: string; image_url?: string
+  }>().catch(() => null)
+  if (!body || !body.org_name || !body.email) return c.json({ error: 'org_name_and_email_required' }, 400)
+  const email = body.email.toLowerCase().trim()
+  const orgName = body.org_name.trim().slice(0, 80)
+  const type = ['restaurant', 'truck', 'home_chef', 'street', 'baker', 'caterer'].includes(body.type || '') ? body.type : 'restaurant'
+  const cuisine = (body.cuisine || 'Healthy').slice(0, 40)
+  const modes = body.service_modes && typeof body.service_modes === 'object' ? body.service_modes : { pickup: true, delivery: true }
+  const fee = Math.max(0, Math.min(999, Number(body.delivery_fee_cents ?? 199)))
+  const priceRange = Math.max(1, Math.min(3, Number(body.price_range || 2)))
+  const image = (body.image_url || '').trim() || CUISINE_DEFAULT_IMG[cuisine] || GENERIC_STORE_IMG
+
+  // user (vendor role)
+  let user = await queryOne<any>(db, 'SELECT * FROM users WHERE email = ?', [email])
+  if (!user) {
+    await db.prepare('INSERT INTO users (email, phone, role) VALUES (?, ?, ?)').bind(email, body.phone || null, 'vendor').run()
+    user = await queryOne<any>(db, 'SELECT * FROM users WHERE email = ?', [email])
+  } else {
+    await db.prepare("UPDATE users SET role = 'vendor' WHERE id = ?").bind(user.id).run()
+  }
+
+  // vendor + location + starter menu
+  const vr = await db.prepare(
+    `INSERT INTO vendors (org_name, type, tier, verified, rating_avg, rating_count, service_modes_json, image_url, cuisine, price_range, delivery_fee_cents, eta_min, eta_max, promo_text)
+     VALUES (?, ?, 'basic', 0, 0, 0, ?, ?, ?, ?, ?, 25, 40, ?)`
+  ).bind(orgName, type, JSON.stringify(modes), image, cuisine, priceRange, fee, (body.promo_text || '').trim() || null).run()
+  const vendorId = Number(vr.meta.last_row_id)
+  const HOURS = JSON.stringify({ mon: ['00:00-23:59'], tue: ['00:00-23:59'], wed: ['00:00-23:59'], thu: ['00:00-23:59'], fri: ['00:00-23:59'], sat: ['00:00-23:59'], sun: ['00:00-23:59'] })
+  await db.prepare(
+    `INSERT INTO locations (vendor_id, address, city, region, postal_code, country, lat, lng, hours_json, is_live_tracking) VALUES (?, ?, ?, 'CA', '94100', 'US', 37.7749, -122.4194, ?, 0)`
+  ).bind(vendorId, (body.address || '').trim() || null, (body.city || 'San Francisco').trim(), HOURS).run()
+  const mr = await db.prepare(`INSERT INTO menus (vendor_id, title, is_active) VALUES (?, 'Full Menu', 1)`).bind(vendorId).run()
+  await db.prepare(`INSERT INTO menu_sections (menu_id, name, sort_order) VALUES (?, 'Featured', 1)`).bind(Number(mr.meta.last_row_id)).run()
+
+  const payload: any = { sub: String(user.id), email, role: 'vendor', vendor_id: vendorId }
+  const token = await sign(payload, getJwtSecret(c))
+  const vendor = await queryOne<any>(db, 'SELECT * FROM vendors WHERE id = ?', [vendorId])
+  return c.json({ token, user: payload, vendor })
+})
+
 // ---------- Vendor Onboarding (Protected) ----------
 app.get('/api/vendor/self', requireAuth, requireVendor, async (c) => {
   const db = c.env.DB
@@ -955,6 +1013,155 @@ app.post('/api/vendor/service-modes', requireAuth, requireVendor, async (c) => {
   if (!modes) return c.json({ error: 'service_modes_required' }, 400)
   await db.prepare('UPDATE vendors SET service_modes_json = ? WHERE id = ?').bind(modes, vendorId).run()
   return c.json({ ok: true })
+})
+
+// Update store profile (whitelisted fields)
+app.post('/api/vendor/profile', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const body = await c.req.json<any>().catch(() => ({}))
+  const sets: string[] = []
+  const bind: unknown[] = []
+  const strFields: Array<[string, number]> = [['org_name', 80], ['cuisine', 40], ['promo_text', 60], ['image_url', 300]]
+  for (const [f, max] of strFields) {
+    if (typeof body[f] === 'string') { sets.push(`${f} = ?`); bind.push(body[f].trim().slice(0, max) || null) }
+  }
+  if (body.type && ['restaurant', 'truck', 'home_chef', 'street', 'baker', 'caterer'].includes(body.type)) { sets.push('type = ?'); bind.push(body.type) }
+  if (body.price_range != null) { sets.push('price_range = ?'); bind.push(Math.max(1, Math.min(3, Number(body.price_range) || 2))) }
+  if (body.delivery_fee_cents != null) { sets.push('delivery_fee_cents = ?'); bind.push(Math.max(0, Math.min(9999, Number(body.delivery_fee_cents) || 0))) }
+  if (body.eta_min != null) { sets.push('eta_min = ?'); bind.push(Math.max(5, Math.min(120, Number(body.eta_min) || 20))) }
+  if (body.eta_max != null) { sets.push('eta_max = ?'); bind.push(Math.max(10, Math.min(180, Number(body.eta_max) || 40))) }
+  if (body.service_modes && typeof body.service_modes === 'object') { sets.push('service_modes_json = ?'); bind.push(JSON.stringify(body.service_modes)) }
+  if (!sets.length) return c.json({ error: 'no_fields' }, 400)
+  bind.push(vendorId)
+  await db.prepare(`UPDATE vendors SET ${sets.join(', ')} WHERE id = ?`).bind(...bind).run()
+  const vendor = await queryOne<any>(db, 'SELECT * FROM vendors WHERE id = ?', [vendorId])
+  return c.json({ ok: true, vendor })
+})
+
+// ---- Menu management helpers ----
+async function vendorMenuId(db: D1Database, vendorId: number): Promise<number | null> {
+  let menu = await queryOne<any>(db, 'SELECT id FROM menus WHERE vendor_id = ? AND is_active = 1 ORDER BY last_updated DESC LIMIT 1', [vendorId])
+  if (!menu) {
+    const mr = await db.prepare(`INSERT INTO menus (vendor_id, title, is_active) VALUES (?, 'Full Menu', 1)`).bind(vendorId).run()
+    return Number(mr.meta.last_row_id)
+  }
+  return Number(menu.id)
+}
+async function sectionOwnedByVendor(db: D1Database, sectionId: number, vendorId: number) {
+  const row = await queryOne<any>(db, 'SELECT s.id FROM menu_sections s JOIN menus m ON m.id = s.menu_id WHERE s.id = ? AND m.vendor_id = ?', [sectionId, vendorId])
+  return !!row
+}
+async function itemOwnedByVendor(db: D1Database, itemId: number, vendorId: number) {
+  const row = await queryOne<any>(db, 'SELECT i.id FROM menu_items i JOIN menu_sections s ON s.id = i.section_id JOIN menus m ON m.id = s.menu_id WHERE i.id = ? AND m.vendor_id = ?', [itemId, vendorId])
+  return !!row
+}
+async function touchMenu(db: D1Database, vendorId: number) {
+  try { await db.prepare('UPDATE menus SET last_updated = CURRENT_TIMESTAMP WHERE vendor_id = ?').bind(vendorId).run() } catch {}
+}
+
+// Sections
+app.post('/api/vendor/sections', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const body = await c.req.json<{ name: string }>().catch(() => ({ name: '' }))
+  const name = (body.name || '').trim().slice(0, 60)
+  if (!name) return c.json({ error: 'name_required' }, 400)
+  const menuId = await vendorMenuId(db, vendorId)
+  const maxRow = await queryOne<any>(db, 'SELECT MAX(sort_order) AS m FROM menu_sections WHERE menu_id = ?', [menuId])
+  const res = await db.prepare('INSERT INTO menu_sections (menu_id, name, sort_order) VALUES (?, ?, ?)').bind(menuId, name, Number(maxRow?.m || 0) + 1).run()
+  await touchMenu(db, vendorId)
+  return c.json({ ok: true, section_id: Number(res.meta.last_row_id) })
+})
+
+app.delete('/api/vendor/sections/:id', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const sectionId = Number(c.req.param('id'))
+  if (!(await sectionOwnedByVendor(db, sectionId, vendorId))) return c.json({ error: 'forbidden' }, 403)
+  await db.prepare('DELETE FROM options WHERE group_id IN (SELECT id FROM option_groups WHERE item_id IN (SELECT id FROM menu_items WHERE section_id = ?))').bind(sectionId).run()
+  await db.prepare('DELETE FROM option_groups WHERE item_id IN (SELECT id FROM menu_items WHERE section_id = ?)').bind(sectionId).run()
+  await db.prepare('DELETE FROM menu_items WHERE section_id = ?').bind(sectionId).run()
+  await db.prepare('DELETE FROM menu_sections WHERE id = ?').bind(sectionId).run()
+  await touchMenu(db, vendorId)
+  return c.json({ ok: true })
+})
+
+// Items
+app.post('/api/vendor/items', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const body = await c.req.json<any>().catch(() => null)
+  if (!body || !body.section_id || !body.name || body.base_price == null) return c.json({ error: 'section_id_name_price_required' }, 400)
+  const sectionId = Number(body.section_id)
+  if (!(await sectionOwnedByVendor(db, sectionId, vendorId))) return c.json({ error: 'forbidden' }, 403)
+  const price = Math.max(0, Math.min(100000, Math.round(Number(body.base_price))))
+  const res = await db.prepare(
+    'INSERT INTO menu_items (section_id, name, description, photo, base_price, is_available, is_popular) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(sectionId, String(body.name).trim().slice(0, 80), (body.description || '').trim().slice(0, 200) || null, (body.photo || '').trim() || null, price, body.is_available === false ? 0 : 1, body.is_popular ? 1 : 0).run()
+  await touchMenu(db, vendorId)
+  const item = await queryOne<any>(db, 'SELECT * FROM menu_items WHERE id = ?', [Number(res.meta.last_row_id)])
+  return c.json({ ok: true, item })
+})
+
+app.put('/api/vendor/items/:id', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const itemId = Number(c.req.param('id'))
+  if (!(await itemOwnedByVendor(db, itemId, vendorId))) return c.json({ error: 'forbidden' }, 403)
+  const body = await c.req.json<any>().catch(() => ({}))
+  const sets: string[] = []
+  const bind: unknown[] = []
+  if (typeof body.name === 'string' && body.name.trim()) { sets.push('name = ?'); bind.push(body.name.trim().slice(0, 80)) }
+  if (typeof body.description === 'string') { sets.push('description = ?'); bind.push(body.description.trim().slice(0, 200) || null) }
+  if (typeof body.photo === 'string') { sets.push('photo = ?'); bind.push(body.photo.trim() || null) }
+  if (body.base_price != null) { sets.push('base_price = ?'); bind.push(Math.max(0, Math.min(100000, Math.round(Number(body.base_price))))) }
+  if (body.is_available != null) { sets.push('is_available = ?'); bind.push(body.is_available ? 1 : 0) }
+  if (body.is_popular != null) { sets.push('is_popular = ?'); bind.push(body.is_popular ? 1 : 0) }
+  if (!sets.length) return c.json({ error: 'no_fields' }, 400)
+  bind.push(itemId)
+  await db.prepare(`UPDATE menu_items SET ${sets.join(', ')} WHERE id = ?`).bind(...bind).run()
+  await touchMenu(db, vendorId)
+  const item = await queryOne<any>(db, 'SELECT * FROM menu_items WHERE id = ?', [itemId])
+  return c.json({ ok: true, item })
+})
+
+app.delete('/api/vendor/items/:id', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const itemId = Number(c.req.param('id'))
+  if (!(await itemOwnedByVendor(db, itemId, vendorId))) return c.json({ error: 'forbidden' }, 403)
+  await db.prepare('DELETE FROM options WHERE group_id IN (SELECT id FROM option_groups WHERE item_id = ?)').bind(itemId).run()
+  await db.prepare('DELETE FROM option_groups WHERE item_id = ?').bind(itemId).run()
+  await db.prepare('DELETE FROM menu_items WHERE id = ?').bind(itemId).run()
+  await touchMenu(db, vendorId)
+  return c.json({ ok: true })
+})
+
+// Vendor order queue
+app.get('/api/vendor/orders', requireAuth, requireVendor, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const vendorId = Number(user.vendor_id)
+  const orders = await queryAll<any>(db, 'SELECT * FROM orders WHERE vendor_id = ? ORDER BY id DESC LIMIT 30', [vendorId])
+  const ids = orders.map((o) => o.id)
+  let itemsByOrder: Record<number, any[]> = {}
+  if (ids.length) {
+    const ph = ids.map(() => '?').join(',')
+    const items = await queryAll<any>(
+      db,
+      `SELECT oi.*, COALESCE(mi.name, 'Removed item') AS item_name FROM order_items oi LEFT JOIN menu_items mi ON mi.id = oi.item_id WHERE oi.order_id IN (${ph})`,
+      ids as unknown[]
+    )
+    for (const it of items) (itemsByOrder[it.order_id] ||= []).push(it)
+  }
+  return c.json({ orders: orders.map((o) => ({ ...o, items: itemsByOrder[o.id] || [] })) })
 })
 
 app.post('/api/vendor/menu-skeleton', requireAuth, requireVendor, async (c) => {
@@ -1549,7 +1756,7 @@ app.get('/api/orders/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const order = await queryOne<any>(db, 'SELECT * FROM orders WHERE id = ?', [id])
   if (!order) return c.notFound()
-  const items = await queryAll<any>(db, 'SELECT oi.*, mi.name AS item_name, mi.photo AS item_photo FROM order_items oi JOIN menu_items mi ON mi.id = oi.item_id WHERE oi.order_id = ?', [id])
+  const items = await queryAll<any>(db, "SELECT oi.*, COALESCE(mi.name, 'Removed item') AS item_name, mi.photo AS item_photo FROM order_items oi LEFT JOIN menu_items mi ON mi.id = oi.item_id WHERE oi.order_id = ?", [id])
   const vendor = await queryOne<any>(db, 'SELECT id, org_name, image_url, cuisine, eta_min, eta_max FROM vendors WHERE id = ?', [order.vendor_id])
   return c.json({ order, items, vendor })
 })

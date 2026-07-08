@@ -59,6 +59,26 @@
   }
   function post(p) { return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) } }
 
+  // Vendor portal API (JWT-authenticated)
+  function vfetch(url, opts) {
+    const vs = store.get('menu_vendor', null)
+    const o = opts || {}
+    o.headers = Object.assign({}, o.headers || {}, vs && vs.token ? { Authorization: `Bearer ${vs.token}` } : {})
+    return fetch(url, o).then((r) => r.json())
+  }
+  const vendorApi = {
+    register: (p) => fetch('/api/vendor/register', post(p)).then((r) => r.json()),
+    self: () => vfetch('/api/vendor/self'),
+    profile: (p) => vfetch('/api/vendor/profile', post(p)),
+    addSection: (p) => vfetch('/api/vendor/sections', post(p)),
+    delSection: (id) => vfetch(`/api/vendor/sections/${id}`, { method: 'DELETE' }),
+    addItem: (p) => vfetch('/api/vendor/items', post(p)),
+    updateItem: (id, p) => vfetch(`/api/vendor/items/${id}`, Object.assign(post(p), { method: 'PUT' })),
+    delItem: (id) => vfetch(`/api/vendor/items/${id}`, { method: 'DELETE' }),
+    orders: () => vfetch('/api/vendor/orders'),
+  }
+  const vendorSession = () => store.get('menu_vendor', null)
+
   // ---------- state ----------
   const state = {
     vendors: [],
@@ -115,6 +135,7 @@
             <i class="fa-solid fa-magnifying-glass text-gray-500"></i>
             <input id="global-search" placeholder="Search Menu" value="${esc(state.filters.q)}" autocomplete="off" />
           </div>
+          ${vendorSession() ? '<button id="vendor-btn" class="hidden md:inline-flex items-center gap-2 text-sm font-bold hover:bg-gray-100 rounded-full px-4 py-2.5 shrink-0" style="color:var(--brand)"><i class="fa-solid fa-store"></i> My store</button>' : ''}
           <button id="orders-btn" class="hidden md:inline-flex items-center gap-2 text-sm font-bold hover:bg-gray-100 rounded-full px-4 py-2.5 shrink-0"><i class="fa-solid fa-receipt"></i> Orders</button>
           ${state.user
             ? `<button id="user-btn" class="w-11 h-11 rounded-full bg-gray-900 text-white font-extrabold shrink-0" title="${esc(state.user.email)}">${esc((state.user.email || 'U')[0].toUpperCase())}</button>`
@@ -146,6 +167,7 @@
       }
     })
     $('#orders-btn')?.addEventListener('click', () => { location.hash = '#/orders' })
+    $('#vendor-btn')?.addEventListener('click', () => { location.hash = '#/vendor' })
     $('#cart-btn').addEventListener('click', openCartDrawer)
     $('#signin-btn')?.addEventListener('click', openSignInModal)
     $('#user-btn')?.addEventListener('click', () => {
@@ -475,17 +497,17 @@
               <h2 class="text-xl md:text-2xl font-extrabold tracking-tight mb-4">${esc(s.name)}</h2>
               <div class="grid md:grid-cols-2 gap-4">
                 ${(s.items || []).map((it) => `
-                  <div class="menu-item-row" data-item="${it.id}">
+                  <div class="menu-item-row ${it.is_available ? '' : 'opacity-60'}" data-item="${it.id}">
                     <div class="min-w-0 py-1">
                       <div class="font-bold text-[16px]">${esc(it.name)}</div>
                       ${it.description ? `<div class="text-sm text-gray-500 mt-1 line-clamp-2">${esc(it.description)}</div>` : ''}
                       <div class="mt-2 text-[15px] font-semibold">${money(it.base_price)}
-                        ${it.is_popular ? `<span class="ml-2 text-xs font-bold" style="color:var(--green)"><i class="fa-solid fa-thumbs-up"></i> Popular</span>` : ''}
+                        ${!it.is_available ? '<span class="ml-2 badge-neutral">Sold out</span>' : it.is_popular ? `<span class="ml-2 text-xs font-bold" style="color:var(--green)"><i class="fa-solid fa-thumbs-up"></i> Popular</span>` : ''}
                       </div>
                     </div>
                     <div class="menu-item-thumb">
                       ${it.photo ? `<img src="${esc(it.photo)}" data-emoji="${emoji}" onerror="__imgFail(this)" alt="${esc(it.name)}" />` : `<div class="food-fallback">${emoji}</div>`}
-                      <button class="quick-add" data-item="${it.id}" data-quick="1"><i class="fa-solid fa-plus"></i></button>
+                      ${it.is_available ? `<button class="quick-add" data-item="${it.id}" data-quick="1"><i class="fa-solid fa-plus"></i></button>` : ''}
                     </div>
                   </div>`).join('')}
               </div>
@@ -542,6 +564,7 @@
       const item = allItems.find((i) => i.id === itemId)
       if (!item) return
       e.stopPropagation()
+      if (!item.is_available) { toast('This item is currently sold out'); return }
       openItemModal(v, item, { quick: !!quick })
     })
 
@@ -1241,8 +1264,8 @@
         openReviewModal(vObj, () => {})
       })
 
-      // demo auto-advance
-      if (!done && o.status !== 'Canceled') {
+      // demo auto-advance (disabled when a vendor session exists — the vendor drives statuses from their dashboard)
+      if (!done && o.status !== 'Canceled' && !vendorSession()) {
         state.trackTimer = setTimeout(async () => {
           const next = stages[Math.min(idx + 1, stages.length - 1)]
           try { await api.orderStatus(id, { status: next }) } catch {}
@@ -1380,6 +1403,459 @@
     })
   }
 
+  // ---------- VENDOR: JOIN ----------
+  const VENDOR_TYPES = [['restaurant', 'Restaurant'], ['truck', 'Food truck'], ['home_chef', 'Home chef'], ['baker', 'Bakery'], ['caterer', 'Caterer'], ['street', 'Street vendor']]
+  const CUISINES = CATEGORIES.filter(([n]) => n !== 'Offers').map(([n]) => n)
+
+  function renderVendorJoin() {
+    if (vendorSession()) { location.hash = '#/vendor'; return }
+    const view = $('#view')
+    view.innerHTML = `
+      <div style="background:#F6F6F6;min-height:calc(100vh - 72px)">
+        <div class="max-w-2xl mx-auto px-4 md:px-6 py-10">
+          <div class="text-center mb-8">
+            <div class="w-16 h-16 mx-auto rounded-full flex items-center justify-center text-3xl" style="background:var(--promo-tint)">🏪</div>
+            <h1 class="text-3xl font-extrabold tracking-tight mt-4">Grow your business with Menu</h1>
+            <p class="text-gray-500 mt-2">Reach new customers, manage your menu, and take orders — set up in under a minute.</p>
+          </div>
+          <div class="card">
+            <h2 class="text-lg font-extrabold mb-4">About your business</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+              <div class="md:col-span-2">
+                <label class="font-bold text-sm">Business name <span style="color:var(--brand)">*</span></label>
+                <input id="vj-name" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="e.g. Mama's Kitchen" />
+              </div>
+              <div>
+                <label class="font-bold text-sm">Business type</label>
+                <select id="vj-type" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
+                  ${VENDOR_TYPES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="font-bold text-sm">Cuisine</label>
+                <select id="vj-cuisine" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
+                  ${CUISINES.map((cName) => `<option>${cName}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="font-bold text-sm">Email <span style="color:var(--brand)">*</span></label>
+                <input id="vj-email" type="email" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="you@business.com" />
+              </div>
+              <div>
+                <label class="font-bold text-sm">Phone</label>
+                <input id="vj-phone" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="+1 (555) 000-0000" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="font-bold text-sm">Street address</label>
+                <input id="vj-address" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="123 Main St" />
+              </div>
+            </div>
+
+            <h2 class="text-lg font-extrabold mt-7 mb-4">Service &amp; pricing</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+              <div>
+                <label class="font-bold text-sm">Delivery fee ($)</label>
+                <input id="vj-fee" type="number" step="0.01" min="0" value="1.99" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" />
+              </div>
+              <div>
+                <label class="font-bold text-sm">Price range</label>
+                <select id="vj-price" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
+                  <option value="1">$ — budget friendly</option>
+                  <option value="2" selected>$$ — mid-range</option>
+                  <option value="3">$$$ — premium</option>
+                </select>
+              </div>
+              <div class="md:col-span-2 flex flex-wrap gap-4 mt-1">
+                <label class="flex items-center gap-2 font-semibold text-sm cursor-pointer"><input type="checkbox" id="vj-pickup" checked class="w-4 h-4 accent-black" /> Pickup</label>
+                <label class="flex items-center gap-2 font-semibold text-sm cursor-pointer"><input type="checkbox" id="vj-delivery" checked class="w-4 h-4 accent-black" /> Delivery</label>
+                <label class="flex items-center gap-2 font-semibold text-sm cursor-pointer"><input type="checkbox" id="vj-dinein" class="w-4 h-4 accent-black" /> Dine-in</label>
+              </div>
+            </div>
+
+            <button class="btn btn-brand btn-lg mt-7" id="vj-submit">Create my store</button>
+            <p class="text-xs text-gray-400 mt-3 text-center">By continuing you agree to the Menu Merchant Terms. Demo — no verification required.</p>
+          </div>
+        </div>
+      </div>`
+
+    $('#vj-submit').addEventListener('click', async () => {
+      const name = $('#vj-name').value.trim()
+      const email = $('#vj-email').value.trim()
+      if (!name) { toast('Business name is required'); return }
+      if (!email || !email.includes('@')) { toast('A valid email is required'); return }
+      const btn = $('#vj-submit')
+      btn.disabled = true; btn.textContent = 'Creating your store...'
+      try {
+        const res = await vendorApi.register({
+          org_name: name,
+          email,
+          phone: $('#vj-phone').value.trim() || undefined,
+          type: $('#vj-type').value,
+          cuisine: $('#vj-cuisine').value,
+          address: $('#vj-address').value.trim() || undefined,
+          delivery_fee_cents: Math.round(Number($('#vj-fee').value || 0) * 100),
+          price_range: Number($('#vj-price').value),
+          service_modes: { pickup: $('#vj-pickup').checked, delivery: $('#vj-delivery').checked, dinein: $('#vj-dinein').checked },
+        })
+        if (res.token && res.vendor) {
+          store.set('menu_vendor', { token: res.token, vendor_id: res.vendor.id, email, org_name: res.vendor.org_name })
+          state.vendorsLoaded = false
+          toast('Welcome to Menu! Your store is live.', 'fa-solid fa-store')
+          renderShell()
+          location.hash = '#/vendor'
+        } else {
+          toast(res.error || 'Registration failed'); btn.disabled = false; btn.textContent = 'Create my store'
+        }
+      } catch {
+        toast('Registration failed — try again'); btn.disabled = false; btn.textContent = 'Create my store'
+      }
+    })
+  }
+
+  // ---------- VENDOR: DASHBOARD ----------
+  function vendorNextStatus(o) {
+    const flow = o.type === 'delivery'
+      ? ['Submitted', 'Accepted', 'In-Prep', 'Out-for-Delivery', 'Completed']
+      : ['Submitted', 'Accepted', 'In-Prep', 'Ready', 'Completed']
+    const i = flow.indexOf(o.status)
+    return i >= 0 && i < flow.length - 1 ? flow[i + 1] : null
+  }
+  const STATUS_COLORS = {
+    Submitted: 'background:var(--promo-tint);color:var(--promo-red)',
+    Accepted: 'background:#FFF4DE;color:#8C6D1F',
+    'In-Prep': 'background:#FFF4DE;color:#8C6D1F',
+    Ready: 'background:var(--green-tint);color:var(--green)',
+    'Out-for-Delivery': 'background:var(--green-tint);color:var(--green)',
+    Completed: 'background:var(--fill);color:var(--muted)',
+    Canceled: 'background:var(--fill);color:var(--muted)',
+  }
+
+  async function renderVendorDash() {
+    const vs = vendorSession()
+    if (!vs) { location.hash = '#/vendor/join'; return }
+    const view = $('#view')
+    view.innerHTML = `<div class="max-w-6xl mx-auto px-4 md:px-6 py-8"><div class="skel h-24 w-full" style="border-radius:16px"></div><div class="skel h-64 w-full mt-5" style="border-radius:16px"></div></div>`
+    state.vendorTab = state.vendorTab || 'menu'
+
+    let self, menusData, ordersData
+    try {
+      ;[self, ordersData] = await Promise.all([vendorApi.self(), vendorApi.orders()])
+      if (self.error) throw new Error(self.error)
+      menusData = await api.menus(vs.vendor_id)
+    } catch (e) {
+      store.set('menu_vendor', null)
+      toast('Vendor session expired — please register or contact support')
+      location.hash = '#/vendor/join'
+      return
+    }
+    const v = self.vendor
+    const sections = (menusData.sections || [])
+    const orders = (ordersData.orders || [])
+    const activeOrders = orders.filter((o) => !['Completed', 'Canceled', 'Refunded'].includes(o.status))
+    let modes = {}
+    try { modes = v.service_modes_json ? JSON.parse(v.service_modes_json) : {} } catch {}
+
+    const tab = state.vendorTab
+    view.innerHTML = `
+      <div class="max-w-6xl mx-auto px-4 md:px-6 py-8 pb-24">
+        <!-- header -->
+        <div class="flex flex-wrap items-center gap-4 justify-between">
+          <div class="flex items-center gap-4 min-w-0">
+            <div class="w-16 h-16 rounded-2xl overflow-hidden shrink-0" style="background:var(--fill)">
+              <img src="${esc(v.image_url || '')}" class="w-full h-full object-cover" data-emoji="🏪" onerror="__imgFail(this)" />
+            </div>
+            <div class="min-w-0">
+              <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight truncate">${esc(v.org_name)}</h1>
+              <div class="text-sm text-gray-500">${esc(v.cuisine || '')} • ${v.verified ? '<span class="money-green">Verified</span>' : 'Pending verification'} • ${Number(v.rating_avg || 0).toFixed(1)} <i class="fa-solid fa-star star text-xs"></i> (${v.rating_count || 0})</div>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-outline btn-sm" id="vd-view-store"><i class="fa-solid fa-eye"></i> View storefront</button>
+            <button class="btn btn-ghost btn-sm" id="vd-signout">Sign out of store</button>
+          </div>
+        </div>
+
+        <!-- tabs -->
+        <div class="tab-row mt-6" id="vd-tabs">
+          <button data-vtab="menu" class="${tab === 'menu' ? 'active' : ''}"><i class="fa-solid fa-utensils mr-1.5"></i>Menu</button>
+          <button data-vtab="orders" class="${tab === 'orders' ? 'active' : ''}"><i class="fa-solid fa-receipt mr-1.5"></i>Orders ${activeOrders.length ? `<span class="ml-1.5 count" style="background:var(--brand);color:#fff;border-radius:999px;padding:1px 8px;font-size:12px">${activeOrders.length}</span>` : ''}</button>
+          <button data-vtab="settings" class="${tab === 'settings' ? 'active' : ''}"><i class="fa-solid fa-gear mr-1.5"></i>Store settings</button>
+        </div>
+
+        <div class="mt-6" id="vd-body"></div>
+      </div>`
+
+    $('#vd-view-store').addEventListener('click', () => { location.hash = `#/store/${v.id}` })
+    $('#vd-signout').addEventListener('click', () => {
+      if (!confirm('Sign out of your store dashboard?')) return
+      store.set('menu_vendor', null)
+      renderShell()
+      location.hash = '#/'
+    })
+    $('#vd-tabs').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-vtab]')
+      if (!b) return
+      state.vendorTab = b.dataset.vtab
+      renderVendorDash()
+    })
+
+    const body = $('#vd-body')
+
+    // ----- MENU TAB -----
+    if (tab === 'menu') {
+      body.innerHTML = `
+        ${sections.map((s) => `
+          <div class="card mb-5" data-sec="${s.id}">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-lg font-extrabold">${esc(s.name)} <span class="text-gray-400 font-semibold text-sm">(${(s.items || []).length})</span></h2>
+              <div class="flex gap-2">
+                <button class="btn btn-ghost btn-sm" data-add-item="${s.id}"><i class="fa-solid fa-plus"></i> Add item</button>
+                <button class="icon-btn" data-del-sec="${s.id}" title="Delete section"><i class="fa-regular fa-trash-can"></i></button>
+              </div>
+            </div>
+            ${(s.items || []).length ? `
+            <div class="space-y-2.5">
+              ${(s.items || []).map((it) => `
+                <div class="flex items-center gap-3 border rounded-xl p-3" style="border-color:var(--line)">
+                  <div class="w-12 h-12 rounded-lg overflow-hidden shrink-0" style="background:var(--fill)">
+                    ${it.photo ? `<img src="${esc(it.photo)}" class="w-full h-full object-cover" data-emoji="🍽️" onerror="__imgFail(this)" />` : '<div class="food-fallback" style="font-size:18px">🍽️</div>'}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-bold text-[15px] truncate">${esc(it.name)} ${it.is_popular ? '<i class="fa-solid fa-thumbs-up text-xs ml-1" style="color:var(--green)"></i>' : ''}</div>
+                    <div class="text-sm text-gray-500">${money(it.base_price)}</div>
+                  </div>
+                  <button class="chip ${it.is_available ? 'active' : ''}" data-toggle-avail="${it.id}" data-avail="${it.is_available ? 1 : 0}" style="height:34px;font-size:13px">${it.is_available ? 'Available' : 'Sold out'}</button>
+                  <button class="icon-btn" data-edit-item="${it.id}" data-sec-of="${s.id}" title="Edit"><i class="fa-solid fa-pen text-sm"></i></button>
+                  <button class="icon-btn" data-del-item="${it.id}" title="Delete"><i class="fa-regular fa-trash-can text-sm"></i></button>
+                </div>`).join('')}
+            </div>` : '<div class="text-sm text-gray-400 py-3">No items yet — add your first dish.</div>'}
+          </div>`).join('')}
+        <div class="card">
+          <h2 class="text-lg font-extrabold mb-3">Add a menu section</h2>
+          <div class="flex gap-2">
+            <input id="new-sec-name" class="flex-1 min-w-0 text-[15px] rounded-xl px-3.5 outline-none" style="background:var(--fill);height:46px" placeholder="e.g. Mains, Sides, Drinks..." />
+            <button class="btn btn-primary btn-sm" style="height:46px" id="new-sec-add"><i class="fa-solid fa-plus"></i> Add section</button>
+          </div>
+        </div>`
+
+      $('#new-sec-add').addEventListener('click', async () => {
+        const name = $('#new-sec-name').value.trim()
+        if (!name) { toast('Enter a section name'); return }
+        const res = await vendorApi.addSection({ name })
+        if (res.ok) { toast('Section added'); renderVendorDash() } else toast(res.error || 'Failed')
+      })
+      body.addEventListener('click', async (e) => {
+        const addBtn = e.target.closest('[data-add-item]')
+        const editBtn = e.target.closest('[data-edit-item]')
+        const delBtn = e.target.closest('[data-del-item]')
+        const delSec = e.target.closest('[data-del-sec]')
+        const availBtn = e.target.closest('[data-toggle-avail]')
+        if (addBtn) openVendorItemModal(Number(addBtn.dataset.addItem), null)
+        else if (editBtn) {
+          const sec = sections.find((s) => s.id === Number(editBtn.dataset.secOf))
+          const item = sec && (sec.items || []).find((i) => i.id === Number(editBtn.dataset.editItem))
+          if (item) openVendorItemModal(sec.id, item)
+        } else if (delBtn) {
+          if (!confirm('Delete this item?')) return
+          const res = await vendorApi.delItem(Number(delBtn.dataset.delItem))
+          if (res.ok) { toast('Item deleted'); state.vendorsLoaded = false; renderVendorDash() } else toast(res.error || 'Failed')
+        } else if (delSec) {
+          if (!confirm('Delete this section and all its items?')) return
+          const res = await vendorApi.delSection(Number(delSec.dataset.delSec))
+          if (res.ok) { toast('Section deleted'); state.vendorsLoaded = false; renderVendorDash() } else toast(res.error || 'Failed')
+        } else if (availBtn) {
+          const on = availBtn.dataset.avail === '1'
+          const res = await vendorApi.updateItem(Number(availBtn.dataset.toggleAvail), { is_available: !on })
+          if (res.ok) { toast(!on ? 'Marked available' : 'Marked sold out'); renderVendorDash() } else toast(res.error || 'Failed')
+        }
+      })
+    }
+
+    // ----- ORDERS TAB -----
+    if (tab === 'orders') {
+      body.innerHTML = `
+        ${orders.length ? `<div class="space-y-4">${orders.map((o) => {
+          const next = vendorNextStatus(o)
+          return `
+          <div class="card" style="padding:18px">
+            <div class="flex flex-wrap items-center gap-3 justify-between">
+              <div class="flex items-center gap-3">
+                <span class="badge-neutral">#${String(o.id).padStart(4, '0')}</span>
+                <span class="text-xs font-bold rounded-full px-3 py-1.5" style="${STATUS_COLORS[o.status] || ''}">${esc(o.status)}</span>
+                <span class="text-xs text-gray-500 font-semibold uppercase">${esc(o.type)}</span>
+                <span class="text-xs text-gray-400">${o.created_at ? new Date(o.created_at.replace(' ', 'T') + 'Z').toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold">${money(o.total)}</span>
+                ${next ? `<button class="btn btn-primary btn-sm" data-advance="${o.id}" data-next="${next}">Mark ${next.replace(/-/g, ' ')} <i class="fa-solid fa-arrow-right ml-1"></i></button>` : ''}
+                ${!['Completed', 'Canceled', 'Refunded'].includes(o.status) ? `<button class="icon-btn" data-cancel="${o.id}" title="Cancel order"><i class="fa-solid fa-ban text-sm"></i></button>` : ''}
+              </div>
+            </div>
+            <div class="mt-3 text-sm text-gray-600">${(o.items || []).map((it) => `${it.qty}× ${esc(it.item_name)}`).join(' • ')}</div>
+          </div>`
+        }).join('')}</div>`
+        : `<div class="text-center py-16">
+            <div class="text-5xl mb-4">📭</div>
+            <div class="text-xl font-extrabold">No orders yet</div>
+            <p class="text-gray-500 text-sm mt-1">New orders will appear here in real time.</p>
+          </div>`}`
+
+      body.addEventListener('click', async (e) => {
+        const adv = e.target.closest('[data-advance]')
+        const cancel = e.target.closest('[data-cancel]')
+        if (adv) {
+          const res = await api.orderStatus(Number(adv.dataset.advance), { status: adv.dataset.next })
+          if (res.order) { toast(`Order ${adv.dataset.next.replace(/-/g, ' ')}`); renderVendorDash() }
+        } else if (cancel) {
+          if (!confirm('Cancel this order?')) return
+          const res = await api.orderStatus(Number(cancel.dataset.cancel), { status: 'Canceled' })
+          if (res.order) { toast('Order canceled'); renderVendorDash() }
+        }
+      })
+      // live queue: refresh while on this tab
+      state.dashTimer = setTimeout(() => { if (currentRoute().name === 'vendor' && state.vendorTab === 'orders') renderVendorDash() }, 10000)
+    }
+
+    // ----- SETTINGS TAB -----
+    if (tab === 'settings') {
+      body.innerHTML = `
+        <div class="card max-w-2xl">
+          <h2 class="text-lg font-extrabold mb-4">Store profile</h2>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="md:col-span-2">
+              <label class="font-bold text-sm">Store name</label>
+              <input id="vs-name" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${esc(v.org_name)}" />
+            </div>
+            <div>
+              <label class="font-bold text-sm">Business type</label>
+              <select id="vs-type" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
+                ${VENDOR_TYPES.map(([val, l]) => `<option value="${val}" ${v.type === val ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="font-bold text-sm">Cuisine</label>
+              <select id="vs-cuisine" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
+                ${CUISINES.map((cName) => `<option ${v.cuisine === cName ? 'selected' : ''}>${cName}</option>`).join('')}
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="font-bold text-sm">Cover photo URL</label>
+              <input id="vs-image" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${esc(v.image_url || '')}" placeholder="https://..." />
+            </div>
+            <div class="md:col-span-2">
+              <label class="font-bold text-sm">Promotion banner <span class="text-gray-400 font-medium">(shown on your store card)</span></label>
+              <input id="vs-promo" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${esc(v.promo_text || '')}" placeholder="e.g. 20% off, up to $5" />
+            </div>
+            <div>
+              <label class="font-bold text-sm">Delivery fee ($)</label>
+              <input id="vs-fee" type="number" step="0.01" min="0" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${(Number(v.delivery_fee_cents || 0) / 100).toFixed(2)}" />
+            </div>
+            <div>
+              <label class="font-bold text-sm">Price range</label>
+              <select id="vs-price" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
+                <option value="1" ${v.price_range == 1 ? 'selected' : ''}>$ — budget friendly</option>
+                <option value="2" ${v.price_range == 2 ? 'selected' : ''}>$$ — mid-range</option>
+                <option value="3" ${v.price_range == 3 ? 'selected' : ''}>$$$ — premium</option>
+              </select>
+            </div>
+            <div>
+              <label class="font-bold text-sm">Prep time — min (minutes)</label>
+              <input id="vs-etamin" type="number" min="5" max="120" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${v.eta_min || 20}" />
+            </div>
+            <div>
+              <label class="font-bold text-sm">Prep time — max (minutes)</label>
+              <input id="vs-etamax" type="number" min="10" max="180" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${v.eta_max || 40}" />
+            </div>
+            <div class="md:col-span-2 flex flex-wrap gap-4 mt-1">
+              <label class="flex items-center gap-2 font-semibold text-sm cursor-pointer"><input type="checkbox" id="vs-pickup" ${modes.pickup !== false ? 'checked' : ''} class="w-4 h-4 accent-black" /> Pickup</label>
+              <label class="flex items-center gap-2 font-semibold text-sm cursor-pointer"><input type="checkbox" id="vs-delivery" ${modes.delivery ? 'checked' : ''} class="w-4 h-4 accent-black" /> Delivery</label>
+              <label class="flex items-center gap-2 font-semibold text-sm cursor-pointer"><input type="checkbox" id="vs-dinein" ${modes.dinein ? 'checked' : ''} class="w-4 h-4 accent-black" /> Dine-in</label>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-lg mt-6" id="vs-save">Save changes</button>
+        </div>`
+
+      $('#vs-save').addEventListener('click', async () => {
+        const btn = $('#vs-save')
+        btn.disabled = true; btn.textContent = 'Saving...'
+        const res = await vendorApi.profile({
+          org_name: $('#vs-name').value,
+          type: $('#vs-type').value,
+          cuisine: $('#vs-cuisine').value,
+          image_url: $('#vs-image').value,
+          promo_text: $('#vs-promo').value,
+          delivery_fee_cents: Math.round(Number($('#vs-fee').value || 0) * 100),
+          price_range: Number($('#vs-price').value),
+          eta_min: Number($('#vs-etamin').value),
+          eta_max: Number($('#vs-etamax').value),
+          service_modes: { pickup: $('#vs-pickup').checked, delivery: $('#vs-delivery').checked, dinein: $('#vs-dinein').checked },
+        })
+        if (res.ok) {
+          const vsNow = vendorSession()
+          store.set('menu_vendor', Object.assign({}, vsNow, { org_name: res.vendor.org_name }))
+          state.vendorsLoaded = false
+          delete state.vendorCache[v.id]
+          toast('Store updated', 'fa-solid fa-circle-check')
+          renderVendorDash()
+        } else { toast(res.error || 'Save failed'); btn.disabled = false; btn.textContent = 'Save changes' }
+      })
+    }
+
+    // item create/edit modal
+    function openVendorItemModal(sectionId, item) {
+      openModal(`
+        <div class="p-6">
+          <div class="flex items-start justify-between">
+            <h2 class="text-2xl font-extrabold tracking-tight">${item ? 'Edit item' : 'New item'}</h2>
+            <button class="icon-btn" id="modal-close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="mt-5 space-y-4">
+            <div>
+              <label class="font-bold text-sm">Item name <span style="color:var(--brand)">*</span></label>
+              <input id="vi-name" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${esc(item ? item.name : '')}" placeholder="e.g. Signature Burger" />
+            </div>
+            <div>
+              <label class="font-bold text-sm">Description</label>
+              <textarea id="vi-desc" rows="2" class="w-full mt-1.5 text-sm rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="Short, appetizing description...">${esc(item ? item.description || '' : '')}</textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="font-bold text-sm">Price ($) <span style="color:var(--brand)">*</span></label>
+                <input id="vi-price" type="number" step="0.01" min="0" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${item ? (item.base_price / 100).toFixed(2) : ''}" placeholder="9.99" />
+              </div>
+              <div>
+                <label class="font-bold text-sm">Photo URL</label>
+                <input id="vi-photo" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${esc(item ? item.photo || '' : '')}" placeholder="https://..." />
+              </div>
+            </div>
+            <div class="flex gap-5">
+              <label class="flex items-center gap-2 font-semibold text-sm cursor-pointer"><input type="checkbox" id="vi-avail" ${!item || item.is_available ? 'checked' : ''} class="w-4 h-4 accent-black" /> Available</label>
+              <label class="flex items-center gap-2 font-semibold text-sm cursor-pointer"><input type="checkbox" id="vi-popular" ${item && item.is_popular ? 'checked' : ''} class="w-4 h-4 accent-black" /> Feature as popular</label>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-lg mt-6" id="vi-save">${item ? 'Save changes' : 'Add item'}</button>
+        </div>`)
+      $('#modal-close').addEventListener('click', closeModal)
+      $('#vi-save').addEventListener('click', async () => {
+        const name = $('#vi-name').value.trim()
+        const price = Number($('#vi-price').value)
+        if (!name) { toast('Item name is required'); return }
+        if (Number.isNaN(price) || price < 0) { toast('Enter a valid price'); return }
+        const payload = {
+          name,
+          description: $('#vi-desc').value,
+          photo: $('#vi-photo').value,
+          base_price: Math.round(price * 100),
+          is_available: $('#vi-avail').checked,
+          is_popular: $('#vi-popular').checked,
+        }
+        const res = item ? await vendorApi.updateItem(item.id, payload) : await vendorApi.addItem(Object.assign({ section_id: sectionId }, payload))
+        if (res.ok) { closeModal(); toast(item ? 'Item updated' : 'Item added', 'fa-solid fa-circle-check'); state.vendorsLoaded = false; renderVendorDash() }
+        else toast(res.error || 'Save failed')
+      })
+    }
+  }
+
   // ---------- router ----------
   function currentRoute() {
     const h = location.hash.replace(/^#\/?/, '')
@@ -1391,10 +1867,13 @@
     if (parts[0] === 'order' && parts[1]) return { name: 'order', id: Number(parts[1]) }
     if (parts[0] === 'orders') return { name: 'orders' }
     if (parts[0] === 'group' && parts[1]) return { name: 'group', code: parts[1] }
+    if (parts[0] === 'vendor' && parts[1] === 'join') return { name: 'vendor-join' }
+    if (parts[0] === 'vendor') return { name: 'vendor' }
     return { name: 'feed', qs }
   }
   function route() {
     clearTimeout(state.trackTimer)
+    clearTimeout(state.dashTimer)
     window.scrollTo({ top: 0 })
     // replace #view with a fresh node so per-view listeners don't accumulate
     const oldView = $('#view')
@@ -1414,6 +1893,8 @@
     else if (r.name === 'order') renderTracking(r.id)
     else if (r.name === 'orders') renderOrders()
     else if (r.name === 'group') renderGroup(r.code)
+    else if (r.name === 'vendor-join') renderVendorJoin()
+    else if (r.name === 'vendor') renderVendorDash()
   }
 
   // landing category deep links arrive as /app?cat=X or /app#/?cat=X
