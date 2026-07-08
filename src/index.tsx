@@ -136,207 +136,128 @@ app.post('/api/auth/login', async (c) => {
 
 // Home route renders landing page (clean marketing page)
 app.get('/', async (c) => {
-
-  const heroImage = 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1600&q=80'
-  // A/B hero variant selection with cookie persistence
-  const qp = c.req.query('hero')?.toLowerCase()
-  let heroMode: 'bg' | 'card' | null = (qp === 'bg' || qp === 'card') ? (qp as 'bg'|'card') : null
-  if (!heroMode) {
-    // Bias selection: default 80% background, 20% card
-    let pBg = 0.8
-    const hb = c.req.query('hero_bias')?.toLowerCase()
-    if (hb) {
-      // Accept formats: "bg:80", "card:80", "bg80", "card80", or just number (0-100) for bg
-      const m = hb.match(/^(bg|card)?\s*[:=]?\s*(\d{1,3})$/)
-      if (m) {
-        const target = (m[1] === 'card') ? 'card' : 'bg'
-        let n = Math.max(0, Math.min(100, Number(m[2] || '0')))
-        pBg = target === 'bg' ? (n/100) : (1 - (n/100))
-      } else {
-        const n = Number(hb)
-        if (!Number.isNaN(n)) pBg = Math.max(0, Math.min(1, n > 1 ? n/100 : n))
-      }
-    }
-    heroMode = Math.random() < pBg ? 'bg' : 'card'
-  }
-  // KV: record hero impression for initial render (date bucket)
-  try {
-    const date = new Date().toISOString().slice(0, 10)
-    await incKV(c, `impressions:hero:${heroMode}:${date}`, 1)
-  } catch {}
-
-  // heroMode resolved above via query/randomization
   return c.render(
     <div>
       {/* Top Nav */}
-      <header class="bg-white border-b">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div class="text-xl font-semibold">Menu</div>
-          <nav class="hidden md:flex items-center gap-6 text-sm text-gray-700">
-            <a href="#how" class="hover:text-gray-900">How it Works</a>
-            <a href="#vendors" class="hover:text-gray-900">For Business</a>
-            <a href="#support" class="hover:text-gray-900">Support</a>
+      <header class="bg-white/95 backdrop-blur sticky top-0 z-40 border-b border-gray-100">
+        <div class="max-w-7xl mx-auto px-6 h-[72px] flex items-center justify-between">
+          <a href="/" class="text-2xl font-extrabold tracking-tight">Menu<span style="color:#EB1700">.</span></a>
+          <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
+            <a href="#how" class="hover:text-black">How it works</a>
+            <a href="#vendors" class="hover:text-black">For businesses</a>
           </nav>
           <div class="flex items-center gap-2">
-            <a href="#signin" class="px-3 py-1.5 text-sm border rounded">Sign In</a>
-            <a href="#getapp" class="px-3 py-1.5 text-sm bg-black text-white rounded">Get App</a>
+            <a href="/app" class="px-4 py-2 text-sm font-semibold rounded-full bg-gray-100 hover:bg-gray-200">Sign in</a>
+            <a href="/app" class="px-4 py-2 text-sm font-semibold rounded-full bg-black text-white hover:bg-gray-800">Get started</a>
           </div>
         </div>
       </header>
 
-      {/* Hero section with periodic auto-switching (10–15s). Both variants are rendered and we toggle visibility. */}
-      <section id="hero-bg" class={heroMode === 'card' ? 'hidden relative' : 'relative'}>
-        <div class="absolute inset-0">
-          <img src={heroImage} alt="Assorted foods background" class="w-full h-full object-cover" />
-          <div class="absolute inset-0 bg-black/40"></div>
-        </div>
-        <div class="relative">
-          <div class="max-w-7xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-            {/* Copy */}
-            <div>
-              <h1 class="text-5xl md:text-6xl font-bold text-white hero-shadow">Discover Local Flavors</h1>
-              <p class="mt-4 md:mt-6 text-lg md:text-xl text-gray-100">From street vendors to fine dining. Find amazing food from restaurants, food trucks, home chefs, and local vendors in your area.</p>
-              <div class="mt-8 flex items-center gap-3">
-                <a id="cta-get-started" href="/app" class="px-5 py-3 bg-black text-white rounded font-semibold">Get Started</a>
-                <a id="cta-download" href="#getapp" class="px-5 py-3 border border-white/70 text-white rounded">Download App</a>
-              </div>
-
-              {/* Categories Card */}
-              <div class="mt-10 md:mt-12 bg-white/90 backdrop-blur text-gray-900 rounded-2xl shadow p-6 md:p-8 max-w-4xl">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
-                  <div class="flex items-start gap-4">
-                    <div class="text-black"><i class="fa-solid fa-utensils"></i></div>
-                    <div>
-                      <div class="font-semibold">Restaurants</div>
-                      <div class="text-xs text-gray-500">Browse menus from local restaurants</div>
-                    </div>
-                  </div>
-                  <div class="flex items-start gap-4">
-                    <div class="text-black"><i class="fa-solid fa-truck"></i></div>
-                    <div>
-                      <div class="font-semibold">Food Trucks</div>
-                      <div class="text-xs text-gray-500">Track live locations and menus</div>
-                    </div>
-                  </div>
-                  <div class="flex items-start gap-4">
-                    <div class="text-black"><i class="fa-solid fa-kitchen-set"></i></div>
-                    <div>
-                      <div class="font-semibold">Home Chefs</div>
-                      <div class="text-xs text-gray-500">Authentic homemade meals</div>
-                    </div>
-                  </div>
-                  <div class="flex items-start gap-4">
-                    <div class="text-black"><i class="fa-solid fa-bread-slice"></i></div>
-                    <div>
-                      <div class="font-semibold">Bakeries & More</div>
-                      <div class="text-xs text-gray-500">Fresh baked goods and specialty</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Right column spacer */}
-            <div class="hidden md:block"></div>
+      {/* Hero — DoorDash-style brand red with address entry */}
+      <section class="relative overflow-hidden" style="background:#EB1700">
+        <img src={IMG('1565299585323-38d6b0865b47', 900)} alt="" class="hidden md:block absolute -left-16 -top-16 w-72 h-72 object-cover rounded-full opacity-95 rotate-[-8deg] shadow-2xl" />
+        <img src={IMG('1568901346375-23c9450c58cd', 900)} alt="" class="hidden md:block absolute -right-20 top-8 w-80 h-80 object-cover rounded-full opacity-95 rotate-[7deg] shadow-2xl" />
+        <img src={IMG('1555507036-ab1f4038808a', 700)} alt="" class="hidden lg:block absolute right-40 -bottom-24 w-56 h-56 object-cover rounded-full opacity-90 shadow-2xl" />
+        <div class="relative max-w-3xl mx-auto px-6 py-20 md:py-28 text-center">
+          <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white">Discover local flavors, delivered.</h1>
+          <p class="mt-4 text-lg md:text-xl text-white/90">Restaurants, food trucks, home chefs and bakeries — from your neighborhood to your door.</p>
+          <form action="/app" method="get" class="mt-8 max-w-xl mx-auto flex items-center gap-2 bg-white rounded-full p-2 pl-5 shadow-2xl">
+            <i class="fa-solid fa-location-dot text-gray-500"></i>
+            <input name="addr" placeholder="Enter delivery address" class="flex-1 min-w-0 outline-none text-[15px] text-gray-900 placeholder-gray-500 bg-transparent" />
+            <button type="submit" class="shrink-0 px-5 py-3 rounded-full bg-black text-white text-sm font-bold hover:bg-gray-800">Find food</button>
+          </form>
+          <div class="mt-4">
+            <a href="/app" class="inline-flex items-center gap-2 bg-white/95 hover:bg-white rounded-full px-4 py-2 text-sm font-semibold text-gray-900">
+              <i class="fa-regular fa-user"></i> Sign in for saved addresses
+            </a>
           </div>
         </div>
       </section>
-      <section id="hero-card" class={heroMode === 'bg' ? 'hidden bg-white' : 'bg-white'}>
-        <div class="max-w-7xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-          {/* Copy */}
-          <div>
-            <h1 class="text-5xl md:text-6xl font-bold text-gray-900">Discover Local Flavors</h1>
-            <p class="mt-4 md:mt-6 text-lg md:text-xl text-gray-600">From street vendors to fine dining. Find amazing food from restaurants, food trucks, home chefs, and local vendors in your area.</p>
-            <div class="mt-8 flex items-center gap-3">
-              <a id="cta-get-started" href="/app" class="px-5 py-3 bg-black text-white rounded font-semibold">Get Started</a>
-              <a id="cta-download" href="#getapp" class="px-5 py-3 border border-gray-300 text-gray-900 rounded">Download App</a>
-            </div>
 
-            {/* Categories Card */}
-            <div class="mt-10 md:mt-12 bg-white text-gray-900 rounded-2xl shadow p-6 md:p-8 max-w-4xl">
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
-                <div class="flex items-start gap-4">
-                  <div class="text-black"><i class="fa-solid fa-utensils"></i></div>
-                  <div>
-                    <div class="font-semibold">Restaurants</div>
-                    <div class="text-xs text-gray-500">Browse menus from local restaurants</div>
-                  </div>
-                </div>
-                <div class="flex items-start gap-4">
-                  <div class="text-black"><i class="fa-solid fa-truck"></i></div>
-                  <div>
-                    <div class="font-semibold">Food Trucks</div>
-                    <div class="text-xs text-gray-500">Track live locations and menus</div>
-                  </div>
-                </div>
-                <div class="flex items-start gap-4">
-                  <div class="text-black"><i class="fa-solid fa-kitchen-set"></i></div>
-                  <div>
-                    <div class="font-semibold">Home Chefs</div>
-                    <div class="text-xs text-gray-500">Authentic homemade meals</div>
-                  </div>
-                </div>
-                <div class="flex items-start gap-4">
-                  <div class="text-black"><i class="fa-solid fa-bread-slice"></i></div>
-                  <div>
-                    <div class="font-semibold">Bakeries & More</div>
-                    <div class="text-xs text-gray-500">Fresh baked goods and specialty</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* Visual: image inside card */}
-          <div class="relative">
-            <figure class="rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden bg-white">
-              <img src={heroImage} alt="Assorted foods" class="w-full h-auto object-cover" />
-            </figure>
-          </div>
+      {/* Explore by craving */}
+      <section class="max-w-7xl mx-auto px-6 pt-16 pb-6">
+        <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight">Explore by craving</h2>
+        <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <a href="/app#/?cat=Pizza" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
+            <div class="font-bold text-lg">Pizza</div>
+            <img src={IMG('1513104890138-7c749659a591', 400)} alt="Pizza" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
+          </a>
+          <a href="/app#/?cat=Mexican" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
+            <div class="font-bold text-lg">Tacos</div>
+            <img src={IMG('1565299585323-38d6b0865b47', 400)} alt="Tacos" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
+          </a>
+          <a href="/app#/?cat=Sushi" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
+            <div class="font-bold text-lg">Sushi</div>
+            <img src={IMG('1579871494447-9811cf80d66c', 400)} alt="Sushi" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
+          </a>
+          <a href="/app#/?cat=Bakery" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
+            <div class="font-bold text-lg">Bakery</div>
+            <img src={IMG('1555507036-ab1f4038808a', 400)} alt="Bakery" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
+          </a>
         </div>
       </section>
-      <script src="/static/hero.js"></script>
-
-
-      <div class="section-divider my-10"></div>
 
       {/* How It Works */}
-      <section id="how" class="bg-white">
-        <div class="max-w-7xl mx-auto px-6 py-16 md:py-20">
-          <h2 class="text-3xl md:text-4xl font-bold">How It Works</h2>
-          <div class="mt-8 grid md:grid-cols-3 gap-10 text-sm">
-            <div>
-              <div class="text-lg font-semibold">1. Discover</div>
-              <p class="text-gray-600">Find local food vendors near you</p>
-            </div>
-            <div>
-              <div class="text-lg font-semibold">2. Order</div>
-              <p class="text-gray-600">Choose pickup, delivery, or dine in</p>
-            </div>
-            <div>
-              <div class="text-lg font-semibold">3. Enjoy</div>
-              <p class="text-gray-600">Track and enjoy your order</p>
-            </div>
+      <section id="how" class="max-w-7xl mx-auto px-6 py-16">
+        <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight">How it works</h2>
+        <div class="mt-8 grid md:grid-cols-3 gap-6">
+          <div class="rounded-2xl border border-gray-200 p-6">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl" style="background:#FCE9E7;color:#EB1700"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div class="mt-4 text-lg font-bold">1. Discover</div>
+            <p class="mt-1 text-gray-600 text-sm">Browse local restaurants, food trucks, home chefs and bakeries near you.</p>
+          </div>
+          <div class="rounded-2xl border border-gray-200 p-6">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl" style="background:#FCE9E7;color:#EB1700"><i class="fa-solid fa-bag-shopping"></i></div>
+            <div class="mt-4 text-lg font-bold">2. Order</div>
+            <p class="mt-1 text-gray-600 text-sm">Customize your items, choose delivery or pickup, and check out in seconds.</p>
+          </div>
+          <div class="rounded-2xl border border-gray-200 p-6">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl" style="background:#FCE9E7;color:#EB1700"><i class="fa-solid fa-map-location-dot"></i></div>
+            <div class="mt-4 text-lg font-bold">3. Track &amp; enjoy</div>
+            <p class="mt-1 text-gray-600 text-sm">Follow your order live from the kitchen to your doorstep.</p>
           </div>
         </div>
       </section>
-
-      <div class="section-divider my-10"></div>
 
       {/* Vendors CTA */}
-      <section id="vendors" class="bg-gray-50">
-        <div class="max-w-7xl mx-auto px-6 py-16 md:py-20 grid md:grid-cols-3 gap-8 items-stretch">
-          <div class="md:col-span-2">
-            <h3 class="text-xl font-semibold">Grow your business with Menu</h3>
-            <p class="mt-2 text-gray-600">Join our platform to reach new customers and manage orders, menus, loyalty, group orders and more.</p>
+      <section id="vendors" class="max-w-7xl mx-auto px-6 pb-20">
+        <div class="rounded-3xl overflow-hidden grid md:grid-cols-2" style="background:#191919">
+          <div class="p-10 md:p-14 text-white">
+            <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight">Grow your business with Menu</h3>
+            <p class="mt-3 text-white/80">Reach new customers and manage orders, menus, loyalty, reservations and group orders — all in one place.</p>
+            <a href="/app" class="mt-6 inline-block px-6 py-3 rounded-full text-white text-sm font-bold" style="background:#EB1700">Join as a vendor</a>
           </div>
-          <div class="bg-white rounded-2xl shadow-lg p-8">
-            <div class="text-lg font-semibold">For Vendors</div>
-            <p class="mt-2 text-sm text-gray-600">Grow your business with Menu</p>
-            <a href="#join" class="mt-4 inline-block px-4 py-2 bg-black text-white rounded">Join as Vendor</a>
-          </div>
+          <img src={IMG('1556910103-1c02745aae4d', 900)} alt="Chef preparing food" class="w-full h-64 md:h-full object-cover" />
         </div>
       </section>
 
-
+      {/* Footer */}
+      <footer class="border-t border-gray-200">
+        <div class="max-w-7xl mx-auto px-6 py-12 grid md:grid-cols-4 gap-8 text-sm">
+          <div>
+            <div class="text-xl font-extrabold">Menu<span style="color:#EB1700">.</span></div>
+            <p class="mt-2 text-gray-500">Local food, delivered with love.</p>
+          </div>
+          <div>
+            <div class="font-bold mb-3">Get to know us</div>
+            <div class="space-y-2 text-gray-600"><div>About us</div><div>Careers</div><div>Blog</div></div>
+          </div>
+          <div>
+            <div class="font-bold mb-3">Let us help you</div>
+            <div class="space-y-2 text-gray-600"><div>Support</div><div>FAQs</div><div>Contact</div></div>
+          </div>
+          <div>
+            <div class="font-bold mb-3">Doing business</div>
+            <div class="space-y-2 text-gray-600"><div>Become a vendor</div><div>Become a courier</div><div>API for partners</div></div>
+          </div>
+        </div>
+        <div class="border-t border-gray-100">
+          <div class="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between text-xs text-gray-500">
+            <div>© 2026 Menu Technologies</div>
+            <div class="flex gap-4"><span>Privacy</span><span>Terms</span><span>Pricing</span></div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 })
@@ -347,23 +268,9 @@ app.get('/ab/reset', (c) => {
   return c.redirect('/')
 })
 
-// SPA shell route for the app experience
+// SPA shell route for the app experience (app.js renders everything into #app)
 app.get('/app', (c) => {
-  return c.render(
-    <div>
-      <header class="bg-white border-b">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div class="text-xl font-semibold"><a href="/">Menu</a></div>
-          <nav class="hidden md:flex items-center gap-6 text-sm text-gray-700">
-            <a href="/" class="hover:text-gray-900">Home</a>
-          </nav>
-        </div>
-      </header>
-      <main class="max-w-7xl mx-auto px-6 py-8">
-        <div id="app" class="space-y-4 md:space-y-6"></div>
-      </main>
-    </div>
-  )
+  return c.render(<div id="app"></div>)
 })
 
 
@@ -423,6 +330,339 @@ function haversineKm(lat1?: number | null, lon1?: number | null, lat2?: number |
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return R * c
+}
+
+// ---------- Rich demo catalog (DoorDash/UberEats-style data) ----------
+const IMG = (id: string, w = 800) => `https://images.unsplash.com/photo-${id}?w=${w}&q=60&auto=format&fit=crop`
+
+type SeedItem = { name: string; desc?: string; price: number; photo?: string; popular?: boolean; options?: Array<{ name: string; min: number; max: number; required: boolean; choices: Array<[string, number]> }> }
+type SeedVendor = {
+  org_name: string; type: string; cuisine: string; tier?: string; price_range: number
+  rating: number; ratings: number; image: string; promo?: string | null
+  fee: number; eta_min: number; eta_max: number; modes: any; live?: boolean
+  lat: number; lng: number; address: string
+  sections: Array<{ name: string; items: SeedItem[] }>
+  reviews: Array<[string, number, string]>
+}
+
+const SALSA_OPTS = { name: 'Salsa', min: 0, max: 2, required: false, choices: [['Mild', 0], ['Hot', 0], ['Extra Hot', 0]] as Array<[string, number]> }
+const TACO_ADDONS = { name: 'Add-ons', min: 0, max: 3, required: false, choices: [['Guacamole', 150], ['Extra Meat', 200], ['Queso', 100]] as Array<[string, number]> }
+
+const RICH_VENDORS: SeedVendor[] = [
+  {
+    org_name: 'Sunset Tacos', type: 'truck', cuisine: 'Mexican', price_range: 1, rating: 4.6, ratings: 2130,
+    image: IMG('1565299585323-38d6b0865b47', 1200), promo: '20% off, up to $5', fee: 0, eta_min: 15, eta_max: 25,
+    modes: { pickup: true, delivery: true }, live: true, lat: 37.7749, lng: -122.4194, address: '123 5th Ave',
+    sections: [
+      { name: 'Tacos', items: [
+        { name: 'Al Pastor Taco', desc: 'Marinated pork, charred pineapple, cilantro & onion', price: 450, photo: IMG('1599974579688-8dbdd335c77f'), popular: true, options: [SALSA_OPTS, TACO_ADDONS] },
+        { name: 'Carne Asada Taco', desc: 'Grilled steak, salsa verde, lime', price: 500, photo: IMG('1551504734-5ee1c4a1479b'), popular: true, options: [SALSA_OPTS, TACO_ADDONS] },
+        { name: 'Baja Fish Taco', desc: 'Crispy cod, chipotle crema, cabbage slaw', price: 550, photo: IMG('1512838243191-e81e8f66f1fd'), options: [SALSA_OPTS] },
+        { name: 'Chicken Tinga Taco', desc: 'Slow-braised chipotle chicken', price: 450, options: [SALSA_OPTS, TACO_ADDONS] },
+      ]},
+      { name: 'Burritos', items: [
+        { name: 'California Burrito', desc: 'Carne asada, fries, cheese, guac & pico', price: 1150, photo: IMG('1626700051175-6818013e1d4f'), popular: true },
+        { name: 'Carnitas Burrito', desc: 'Slow-cooked pork, rice, beans, salsa roja', price: 1090 },
+      ]},
+      { name: 'Sides & Drinks', items: [
+        { name: 'Chips & Guacamole', desc: 'Fresh tortilla chips, hand-smashed guac', price: 650, photo: IMG('1548839140-29a749e1cf4d') },
+        { name: 'Elote', desc: 'Street corn, cotija, chile-lime mayo', price: 500 },
+        { name: 'Horchata', desc: 'House-made, cinnamon rice milk', price: 400 },
+      ]},
+    ],
+    reviews: [ ['Maya R.', 5, 'Best al pastor in the city. The truck is fast even at lunch rush.'], ['Devon K.', 5, 'California burrito is enormous and perfect.'], ['Ana P.', 4, 'Great tacos, salsa bar is amazing. Parking can be tricky.'] ],
+  },
+  {
+    org_name: 'Burger & Shake Society', type: 'restaurant', cuisine: 'Burgers', price_range: 2, rating: 4.4, ratings: 3240,
+    image: IMG('1568901346375-23c9450c58cd', 1200), promo: '$0 delivery fee', fee: 0, eta_min: 15, eta_max: 25,
+    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.781, lng: -122.414, address: '88 Grove St',
+    sections: [
+      { name: 'Burgers', items: [
+        { name: 'Classic Smash', desc: 'Two smashed patties, American cheese, house sauce', price: 990, photo: IMG('1568901346375-23c9450c58cd'), popular: true, options: [
+          { name: 'Toppings', min: 0, max: 4, required: false, choices: [['Bacon', 200], ['Avocado', 150], ['Fried Egg', 150], ['Grilled Onions', 0]] },
+          { name: 'Temperature', min: 1, max: 1, required: true, choices: [['Medium', 0], ['Medium Well', 0], ['Well Done', 0]] },
+        ]},
+        { name: 'Double Trouble', desc: 'Four patties, double cheese, pickles', price: 1350, photo: IMG('1550317138-10000687a72b'), popular: true },
+        { name: 'Truffle Burger', desc: 'Truffle aioli, swiss, crispy shallots', price: 1490, photo: IMG('1551782450-a2132b4ba21d') },
+        { name: 'Impossible Burger', desc: 'Plant-based patty, vegan cheddar (vegetarian)', price: 1250 },
+      ]},
+      { name: 'Fries & Sides', items: [
+        { name: 'Classic Fries', desc: 'Crispy, sea salt', price: 450, photo: IMG('1573080496219-bb080dd4f877'), popular: true },
+        { name: 'Garlic Parm Fries', desc: 'Garlic butter, shredded parmesan', price: 590 },
+        { name: 'Loaded Fries', desc: 'Cheese sauce, bacon, scallions', price: 750 },
+      ]},
+      { name: 'Shakes', items: [
+        { name: 'Oreo Shake', desc: 'Hand-spun, real cookies', price: 650, photo: IMG('1563805042-7684c019e1cb') },
+        { name: 'Vanilla Bean Shake', desc: 'Madagascar vanilla', price: 650 },
+      ]},
+    ],
+    reviews: [ ['Jordan T.', 4, 'Smash burgers done right. Fries stayed crispy through delivery.'], ['Sam W.', 5, 'Oreo shake is dangerously good.'], ['Priya N.', 4, 'Solid, fast, consistent.'] ],
+  },
+  {
+    org_name: 'Brick Oven Pizza Co.', type: 'restaurant', cuisine: 'Pizza', price_range: 2, rating: 4.5, ratings: 1420,
+    image: IMG('1513104890138-7c749659a591', 1200), promo: 'Free delivery over $20', fee: 99, eta_min: 25, eta_max: 40,
+    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.788, lng: -122.407, address: '210 Columbus Ave',
+    sections: [
+      { name: 'Pizzas', items: [
+        { name: 'Margherita', desc: 'San Marzano tomato, fresh mozzarella, basil', price: 1400, photo: IMG('1574071318508-1cdbab80d002'), popular: true, options: [
+          { name: 'Size', min: 1, max: 1, required: true, choices: [['12" Regular', 0], ['16" Large', 600]] },
+          { name: 'Extras', min: 0, max: 3, required: false, choices: [['Extra Mozzarella', 250], ['Prosciutto', 400], ['Chili Honey', 150]] },
+        ]},
+        { name: 'Pepperoni', desc: 'Cup-and-char pepperoni, aged mozzarella', price: 1600, photo: IMG('1628840042765-356cda07504e'), popular: true, options: [
+          { name: 'Size', min: 1, max: 1, required: true, choices: [['12" Regular', 0], ['16" Large', 600]] },
+        ]},
+        { name: 'Truffle Mushroom', desc: 'Wild mushrooms, taleggio, truffle oil', price: 1850 },
+        { name: 'BBQ Chicken', desc: 'Smoked chicken, red onion, cilantro', price: 1700 },
+      ]},
+      { name: 'Wings & Sides', items: [
+        { name: 'Buffalo Wings', desc: '8 pc, blue cheese dip', price: 1100, photo: IMG('1608039755401-742074f0548d') },
+        { name: 'Garlic Knots', desc: '6 pc, parmesan, marinara', price: 650 },
+      ]},
+      { name: 'Desserts', items: [
+        { name: 'Tiramisu', desc: 'Espresso-soaked, house mascarpone', price: 800, photo: IMG('1571877227200-a0d98ea607e9') },
+      ]},
+    ],
+    reviews: [ ['Gina L.', 5, 'Real-deal neapolitan crust. Margherita is perfect.'], ['Marco D.', 4, 'Great pizza, arrived hot. Knots are a must.'], ['Chris B.', 4, 'Truffle mushroom pie is worth every penny.'] ],
+  },
+  {
+    org_name: 'Tokyo Sushi Bar', type: 'restaurant', cuisine: 'Sushi', price_range: 3, rating: 4.8, ratings: 720,
+    image: IMG('1579871494447-9811cf80d66c', 1200), promo: null, fee: 399, eta_min: 30, eta_max: 45,
+    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.785, lng: -122.431, address: '1580 Post St',
+    sections: [
+      { name: 'Signature Rolls', items: [
+        { name: 'Dragon Roll', desc: 'Eel, cucumber, avocado, tobiko', price: 1500, photo: IMG('1579871494447-9811cf80d66c'), popular: true },
+        { name: 'Rainbow Roll', desc: 'California roll topped with chef’s selection', price: 1600, photo: IMG('1553621042-f6e147245754'), popular: true },
+        { name: 'Spicy Tuna Roll', desc: 'Ahi tuna, spicy mayo, scallion', price: 1100 },
+        { name: 'California Roll', desc: 'Snow crab, avocado, cucumber', price: 900 },
+      ]},
+      { name: 'Nigiri & Sashimi', items: [
+        { name: 'Salmon Nigiri (2pc)', desc: 'Scottish salmon', price: 700, photo: IMG('1534482421-64566f976cfa') },
+        { name: 'Bluefin Tuna Nigiri (2pc)', desc: 'Line-caught', price: 800 },
+        { name: 'Sashimi Platter', desc: '12 pc chef’s selection', price: 2400 },
+      ]},
+      { name: 'Appetizers', items: [
+        { name: 'Edamame', desc: 'Sea salt or spicy garlic', price: 550, options: [ { name: 'Style', min: 1, max: 1, required: true, choices: [['Sea Salt', 0], ['Spicy Garlic', 50]] } ] },
+        { name: 'Pork Gyoza (5pc)', desc: 'Pan-fried, ponzu', price: 750, photo: IMG('1496116218417-1a781b1c416c') },
+        { name: 'Miso Soup', desc: 'Tofu, wakame, scallion', price: 400 },
+      ]},
+    ],
+    reviews: [ ['Kenji M.', 5, 'Fish quality rivals places twice the price.'], ['Lauren S.', 5, 'Dragon roll presentation is stunning, even delivered.'], ['Tom H.', 4, 'Pricey but worth it for a treat.'] ],
+  },
+  {
+    org_name: 'Green Bowl Kitchen', type: 'restaurant', cuisine: 'Healthy', price_range: 2, rating: 4.7, ratings: 860,
+    image: IMG('1512621776951-a57141f2eefd', 1200), promo: 'Buy 1, Get 1 Free', fee: 199, eta_min: 20, eta_max: 30,
+    modes: { pickup: true, delivery: true }, lat: 37.79, lng: -122.42, address: '500 Market St',
+    sections: [
+      { name: 'Bowls', items: [
+        { name: 'Green Goddess', desc: 'Kale, quinoa, avocado, green tahini', price: 1300, photo: IMG('1512621776951-a57141f2eefd'), popular: true, options: [
+          { name: 'Protein', min: 1, max: 1, required: true, choices: [['Tofu', 0], ['Chicken', 200], ['Salmon', 400]] },
+        ]},
+        { name: 'Harvest Bowl', desc: 'Roasted sweet potato, wild rice, goat cheese', price: 1250, photo: IMG('1546069901-ba9599a7e63c'), popular: true, options: [
+          { name: 'Protein', min: 1, max: 1, required: true, choices: [['Tofu', 0], ['Chicken', 200], ['Steak', 350]] },
+        ]},
+        { name: 'Spicy Tofu Bowl', desc: 'Gochujang tofu, brown rice, pickled veg (vegan)', price: 1190 },
+      ]},
+      { name: 'Salads', items: [
+        { name: 'Kale Caesar', desc: 'Lacinato kale, sourdough crumb, white anchovy', price: 1050, photo: IMG('1550304943-4f24f54ddde9') },
+        { name: 'Mediterranean Crunch', desc: 'Chickpeas, feta, cucumber, sumac vinaigrette', price: 1100 },
+      ]},
+      { name: 'Smoothies & Juice', items: [
+        { name: 'Berry Blast Smoothie', desc: 'Triple berry, banana, oat milk', price: 750, photo: IMG('1505252585461-04db1eb84625') },
+        { name: 'Green Machine Juice', desc: 'Celery, apple, ginger, lemon', price: 800 },
+      ]},
+    ],
+    reviews: [ ['Elena V.', 5, 'The only salad place where delivery still tastes fresh.'], ['Marcus J.', 4, 'Harvest bowl with steak is my weekly order.'], ['Kim O.', 5, 'Vegan options that actually have flavor.'] ],
+  },
+  {
+    org_name: "Nia's Kitchen", type: 'home_chef', cuisine: 'West African', price_range: 2, rating: 4.9, ratings: 312,
+    image: IMG('1512058564366-18510be2db19', 1200), promo: null, fee: 299, eta_min: 35, eta_max: 50,
+    modes: { pickup: true, delivery: true }, lat: 37.78, lng: -122.41, address: '12 Baker St',
+    sections: [
+      { name: 'Home Meals', items: [
+        { name: 'Jollof Rice & Chicken', desc: 'Smoky party jollof, grilled chicken thigh, plantains', price: 1400, photo: IMG('1512058564366-18510be2db19'), popular: true, options: [
+          { name: 'Heat Level', min: 1, max: 1, required: true, choices: [['Mild', 0], ['Medium', 0], ['Naija Hot', 0]] },
+        ]},
+        { name: 'Egusi & Pounded Yam', desc: 'Melon seed stew, spinach, assorted meat', price: 1600, popular: true },
+        { name: 'Suya Skewers (3pc)', desc: 'Peanut-spiced grilled beef, red onion', price: 1200, photo: IMG('1529006557810-274b9b2fc783') },
+        { name: 'Sweet Fried Plantains', desc: 'Caramelized dodo', price: 600 },
+      ]},
+      { name: 'Weekend Specials', items: [
+        { name: 'Waakye Bowl', desc: 'Rice & beans, gari, boiled egg, shito (Sat/Sun)', price: 1350 },
+        { name: 'Chin Chin (Snack Bag)', desc: 'Crunchy-sweet, house recipe', price: 450 },
+      ]},
+    ],
+    reviews: [ ['Adaeze O.', 5, 'Tastes like my grandmother’s cooking. The real thing.'], ['Femi A.', 5, 'Jollof has actual smoke flavor. Order the suya too.'], ['Rachel G.', 5, 'Chef Nia puts love in every container.'] ],
+  },
+  {
+    org_name: 'Seoul Street BBQ', type: 'truck', cuisine: 'Korean', price_range: 2, rating: 4.7, ratings: 1180,
+    image: IMG('1529193591184-b1d58069ecdd', 1200), promo: '15% off orders $30+', fee: 149, eta_min: 20, eta_max: 30,
+    modes: { pickup: true, delivery: true }, live: true, lat: 37.776, lng: -122.424, address: 'Civic Center Plaza',
+    sections: [
+      { name: 'Plates', items: [
+        { name: 'Bulgogi Plate', desc: 'Soy-marinated ribeye, rice, banchan', price: 1450, photo: IMG('1529193591184-b1d58069ecdd'), popular: true },
+        { name: 'Spicy Pork Plate', desc: 'Gochujang pork belly, kimchi, rice', price: 1390, popular: true },
+        { name: 'Tofu Bibimbap', desc: 'Crispy tofu, seasonal veg, fried egg, gochujang (vegetarian)', price: 1250, photo: IMG('1553163147-622ab57be1c7') },
+      ]},
+      { name: 'Street Food', items: [
+        { name: 'Korean Corn Dog', desc: 'Mozzarella, panko, sugar dust', price: 750, popular: true },
+        { name: 'Tteokbokki', desc: 'Chewy rice cakes, sweet-spicy sauce', price: 890 },
+        { name: 'Kimchi Fries', desc: 'Bulgogi, kimchi, gochujang aioli, scallion', price: 950 },
+      ]},
+    ],
+    reviews: [ ['Hana C.', 5, 'Corn dog stretch is unreal. Track the truck, it moves!'], ['Diego F.', 4, 'Bulgogi plate portions are generous.'], ['Wes P.', 5, 'Kimchi fries = elite drunk food.'] ],
+  },
+  {
+    org_name: 'Golden Dragon Noodles', type: 'restaurant', cuisine: 'Chinese', price_range: 1, rating: 4.3, ratings: 940,
+    image: IMG('1585032226651-759b368d7246', 1200), promo: null, fee: 249, eta_min: 20, eta_max: 35,
+    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.794, lng: -122.406, address: '733 Washington St',
+    sections: [
+      { name: 'Noodles', items: [
+        { name: 'Dan Dan Noodles', desc: 'Sichuan chili oil, minced pork, peanut', price: 1250, photo: IMG('1585032226651-759b368d7246'), popular: true },
+        { name: 'Beef Chow Fun', desc: 'Wok-charred wide rice noodles', price: 1390, popular: true },
+        { name: 'Veggie Lo Mein', desc: 'Seasonal vegetables, scallion oil (vegan)', price: 1090 },
+      ]},
+      { name: 'Dumplings', items: [
+        { name: 'Pork Soup Dumplings (6pc)', desc: 'Hand-pleated XLB', price: 890, photo: IMG('1496116218417-1a781b1c416c'), popular: true },
+        { name: 'Veggie Dumplings (6pc)', desc: 'Cabbage, shiitake, glass noodle (vegan)', price: 850 },
+      ]},
+      { name: 'Rice', items: [
+        { name: 'Yangzhou Fried Rice', desc: 'Shrimp, BBQ pork, egg', price: 990 },
+      ]},
+    ],
+    reviews: [ ['Vivian Z.', 4, 'XLB survive delivery surprisingly well.'], ['Nate R.', 4, 'Dan dan noodles have proper málà kick.'], ['Iris W.', 5, 'Fast, cheap, delicious.'] ],
+  },
+  {
+    org_name: 'La Pâtisserie Dorée', type: 'baker', cuisine: 'Bakery', price_range: 2, rating: 4.9, ratings: 452,
+    image: IMG('1555507036-ab1f4038808a', 1200), promo: '20% off pastries', fee: 199, eta_min: 20, eta_max: 30,
+    modes: { pickup: true, delivery: true }, lat: 37.771, lng: -122.437, address: '2101 Hayes St',
+    sections: [
+      { name: 'Viennoiserie', items: [
+        { name: 'Butter Croissant', desc: '72-hour laminated, French butter', price: 425, photo: IMG('1555507036-ab1f4038808a'), popular: true },
+        { name: 'Pain au Chocolat', desc: 'Valrhona batons', price: 475, popular: true },
+        { name: 'Almond Croissant', desc: 'Twice-baked, frangipane', price: 525 },
+      ]},
+      { name: 'Cakes & Tarts', items: [
+        { name: 'Chocolate Fondant Slice', desc: '70% dark chocolate', price: 650, photo: IMG('1578985545062-69928b1d9587') },
+        { name: 'Basque Cheesecake Slice', desc: 'Burnt top, custardy center', price: 700 },
+        { name: 'Lemon Tart', desc: 'Torched meringue', price: 675 },
+      ]},
+      { name: 'Coffee', items: [
+        { name: 'Latte', desc: 'Double shot, house blend', price: 500, photo: IMG('1509042239860-f550ce710b93'), options: [ { name: 'Milk', min: 1, max: 1, required: true, choices: [['Whole', 0], ['Oat', 75], ['Almond', 75]] } ] },
+        { name: 'Cappuccino', desc: 'Classic dry foam', price: 475 },
+      ]},
+    ],
+    reviews: [ ['Sophie B.', 5, 'Croissants as good as Paris. Not exaggerating.'], ['Liam N.', 5, 'Basque cheesecake is a religious experience.'], ['Grace T.', 4, 'Arrives beautifully boxed.'] ],
+  },
+  {
+    org_name: 'Bombay Spice House', type: 'restaurant', cuisine: 'Indian', price_range: 2, rating: 4.6, ratings: 890,
+    image: IMG('1585937421612-70a008356fbe', 1200), promo: null, fee: 299, eta_min: 30, eta_max: 45,
+    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.765, lng: -122.42, address: '3111 24th St',
+    sections: [
+      { name: 'Curries', items: [
+        { name: 'Butter Chicken', desc: 'Tandoor chicken, tomato-fenugreek cream', price: 1590, photo: IMG('1585937421612-70a008356fbe'), popular: true, options: [
+          { name: 'Spice Level', min: 1, max: 1, required: true, choices: [['Mild', 0], ['Medium', 0], ['Hot', 0], ['Indian Hot', 0]] },
+        ]},
+        { name: 'Chana Masala', desc: 'Chickpeas, ginger, garam masala (vegan)', price: 1290, options: [
+          { name: 'Spice Level', min: 1, max: 1, required: true, choices: [['Mild', 0], ['Medium', 0], ['Hot', 0]] },
+        ]},
+        { name: 'Lamb Rogan Josh', desc: 'Kashmiri chili, slow-braised', price: 1750 },
+      ]},
+      { name: 'Tandoor & Breads', items: [
+        { name: 'Garlic Naan', desc: 'Charred, buttered', price: 450, popular: true },
+        { name: 'Chicken Biryani', desc: 'Saffron basmati, crispy onions, raita', price: 1490, photo: IMG('1563379091339-03b21ab4a4f8') },
+        { name: 'Tandoori Half Chicken', desc: 'Yogurt-marinated, mint chutney', price: 1390 },
+      ]},
+    ],
+    reviews: [ ['Anish P.', 5, 'Butter chicken is silky perfection. Get extra naan.'], ['Meera D.', 4, 'Biryani portion feeds two.'], ['Jake L.', 4, '"Indian Hot" is not a joke. Delicious.'] ],
+  },
+  {
+    org_name: 'The Breakfast Club', type: 'restaurant', cuisine: 'Breakfast', price_range: 2, rating: 4.5, ratings: 2410,
+    image: IMG('1567620905732-2d1ec7ab7445', 1200), promo: '15% off orders $25+', fee: 199, eta_min: 15, eta_max: 25,
+    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.798, lng: -122.435, address: '2301 Chestnut St',
+    sections: [
+      { name: 'All-Day Breakfast', items: [
+        { name: 'Buttermilk Pancakes', desc: 'Stack of three, whipped butter, maple', price: 1090, photo: IMG('1567620905732-2d1ec7ab7445'), popular: true },
+        { name: 'Avocado Toast', desc: 'Sourdough, heirloom tomato, chili flake', price: 1150, photo: IMG('1541519227354-08fa5d50c44d'), popular: true },
+        { name: 'Breakfast Burrito', desc: 'Scrambled eggs, bacon, crispy potato, salsa', price: 1050 },
+        { name: 'Brioche French Toast', desc: 'Berry compote, mascarpone', price: 1190, photo: IMG('1484723091739-30a097e8f929') },
+      ]},
+      { name: 'Coffee & Juice', items: [
+        { name: 'Cold Brew', desc: '16 oz, single origin', price: 500, photo: IMG('1509042239860-f550ce710b93') },
+        { name: 'Fresh Orange Juice', desc: 'Squeezed to order', price: 450 },
+      ]},
+    ],
+    reviews: [ ['Nina S.', 5, 'French toast is heavenly. Weekend must.'], ['Omar E.', 4, 'Burrito travels well, still crispy.'], ['Beth C.', 4, 'Best pancakes in the Marina.'] ],
+  },
+  {
+    org_name: 'Mediterraneo', type: 'caterer', cuisine: 'Mediterranean', price_range: 2, rating: 4.7, ratings: 640,
+    image: IMG('1529006557810-274b9b2fc783', 1200), promo: 'Free baklava over $35', fee: 249, eta_min: 25, eta_max: 40,
+    modes: { pickup: true, delivery: true }, lat: 37.786, lng: -122.44, address: '1793 Union St',
+    sections: [
+      { name: 'Plates', items: [
+        { name: 'Chicken Shawarma Plate', desc: 'Spit-roasted, garlic toum, saffron rice', price: 1350, photo: IMG('1529006557810-274b9b2fc783'), popular: true },
+        { name: 'Falafel Plate', desc: 'Herb falafel, tahini, Israeli salad (vegan)', price: 1190, popular: true },
+        { name: 'Lamb Gyro Plate', desc: 'Shaved lamb, tzatziki, warm pita', price: 1450 },
+      ]},
+      { name: 'Mezze', items: [
+        { name: 'Classic Hummus', desc: 'Silky chickpea, olive oil, warm pita', price: 650, photo: IMG('1593560708920-61dd98c46a4e') },
+        { name: 'Baba Ganoush', desc: 'Fire-roasted eggplant', price: 700 },
+        { name: 'Tabbouleh', desc: 'Parsley, bulgur, lemon', price: 600 },
+      ]},
+      { name: 'Sweets', items: [
+        { name: 'Pistachio Baklava (3pc)', desc: 'Honey syrup, 40 layers', price: 550 },
+      ]},
+    ],
+    reviews: [ ['Layla H.', 5, 'Toum so good I ordered a side of just toum.'], ['George K.', 5, 'Falafel stays crunchy. Rare for delivery.'], ['Dana M.', 4, 'Generous mezze portions.'] ],
+  },
+]
+
+async function seedRichVendors(db: D1Database) {
+  const row = await db.prepare('SELECT COUNT(1) AS n FROM vendors').first<{ n: number }>()
+  if (Number(row?.n || 0) >= RICH_VENDORS.length) return
+  // Wipe catalog + dependent demo data for a clean, consistent dataset
+  for (const t of ['order_items', 'orders', 'group_order_items', 'group_orders', 'reviews', 'loyalty', 'reservations', 'options', 'option_groups', 'menu_items', 'menu_sections', 'menus', 'locations', 'vendors']) {
+    try { await db.prepare(`DELETE FROM ${t}`).run() } catch {}
+  }
+  const HOURS = JSON.stringify({ mon: ['00:00-23:59'], tue: ['00:00-23:59'], wed: ['00:00-23:59'], thu: ['00:00-23:59'], fri: ['00:00-23:59'], sat: ['00:00-23:59'], sun: ['00:00-23:59'] })
+  let demoUser = await queryOne<any>(db, "SELECT id FROM users WHERE email = 'alice@example.com'")
+  if (!demoUser) {
+    await db.prepare("INSERT INTO users (email, phone, role) VALUES ('alice@example.com','+15550000001','customer')").run()
+    demoUser = await queryOne<any>(db, "SELECT id FROM users WHERE email = 'alice@example.com'")
+  }
+  for (const v of RICH_VENDORS) {
+    const vr = await db.prepare(
+      `INSERT INTO vendors (org_name, type, tier, verified, rating_avg, rating_count, service_modes_json, image_url, cuisine, price_range, delivery_fee_cents, eta_min, eta_max, promo_text)
+       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(v.org_name, v.type, v.tier || 'basic', v.rating, v.ratings, JSON.stringify(v.modes), v.image, v.cuisine, v.price_range, v.fee, v.eta_min, v.eta_max, v.promo || null).run()
+    const vendorId = Number(vr.meta.last_row_id)
+    await db.prepare(
+      `INSERT INTO locations (vendor_id, address, city, region, postal_code, country, lat, lng, hours_json, is_live_tracking) VALUES (?, ?, 'San Francisco', 'CA', '94100', 'US', ?, ?, ?, ?)`
+    ).bind(vendorId, v.address, v.lat, v.lng, HOURS, v.live ? 1 : 0).run()
+    const mr = await db.prepare(`INSERT INTO menus (vendor_id, title, is_active) VALUES (?, 'Full Menu', 1)`).bind(vendorId).run()
+    const menuId = Number(mr.meta.last_row_id)
+    let sort = 0
+    for (const s of v.sections) {
+      sort++
+      const sr = await db.prepare(`INSERT INTO menu_sections (menu_id, name, sort_order) VALUES (?, ?, ?)`).bind(menuId, s.name, sort).run()
+      const sectionId = Number(sr.meta.last_row_id)
+      for (const it of s.items) {
+        const ir = await db.prepare(
+          `INSERT INTO menu_items (section_id, name, description, photo, base_price, is_available, is_popular) VALUES (?, ?, ?, ?, ?, 1, ?)`
+        ).bind(sectionId, it.name, it.desc || null, it.photo || null, it.price, it.popular ? 1 : 0).run()
+        const itemId = Number(ir.meta.last_row_id)
+        for (const g of it.options || []) {
+          const gr = await db.prepare(`INSERT INTO option_groups (item_id, name, min, max, required) VALUES (?, ?, ?, ?, ?)`).bind(itemId, g.name, g.min, g.max, g.required ? 1 : 0).run()
+          const groupId = Number(gr.meta.last_row_id)
+          for (const [name, delta] of g.choices) {
+            await db.prepare(`INSERT INTO options (group_id, name, price_delta) VALUES (?, ?, ?)`).bind(groupId, name, delta).run()
+          }
+        }
+      }
+    }
+    for (const [author, rating, text] of v.reviews) {
+      await db.prepare(`INSERT INTO reviews (user_id, vendor_id, rating, text, status, author_name) VALUES (?, ?, ?, ?, 'published', ?)`).bind(Number(demoUser.id), vendorId, rating, text, author).run()
+    }
+  }
 }
 
 async function ensureSchemaAndSeed(db: D1Database) {
@@ -673,6 +913,26 @@ async function ensureSchemaAndSeed(db: D1Database) {
     )
     .run()
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_reservations_vendor_id ON reservations(vendor_id)`).run()
+
+  // Column evolutions for the rich catalog (idempotent)
+  const vendorCols: Array<[string, string]> = [
+    ['image_url', 'TEXT'], ['cuisine', 'TEXT'], ['price_range', 'INTEGER'],
+    ['delivery_fee_cents', 'INTEGER'], ['eta_min', 'INTEGER'], ['eta_max', 'INTEGER'], ['promo_text', 'TEXT'],
+  ]
+  for (const [col, typ] of vendorCols) {
+    if (!(await columnExists(db, 'vendors', col))) {
+      await db.prepare(`ALTER TABLE vendors ADD COLUMN ${col} ${typ}`).run()
+    }
+  }
+  if (!(await columnExists(db, 'menu_items', 'is_popular'))) {
+    await db.prepare(`ALTER TABLE menu_items ADD COLUMN is_popular INTEGER NOT NULL DEFAULT 0`).run()
+  }
+  if (!(await columnExists(db, 'reviews', 'author_name'))) {
+    await db.prepare(`ALTER TABLE reviews ADD COLUMN author_name TEXT`).run()
+  }
+
+  // Upgrade to the rich demo catalog when the DB still has the old minimal seed
+  await seedRichVendors(db)
 }
 
 // ---------- Vendor Onboarding (Protected) ----------
@@ -769,7 +1029,7 @@ app.get('/api/vendors', async (c) => {
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
   const baseVendors = await queryAll<any>(
     db,
-    `SELECT id, org_name, type, tier, verified, rating_avg, rating_count, service_modes_json, created_at FROM vendors ${where} ORDER BY id DESC LIMIT 200`,
+    `SELECT id, org_name, type, tier, verified, rating_avg, rating_count, service_modes_json, image_url, cuisine, price_range, delivery_fee_cents, eta_min, eta_max, promo_text, created_at FROM vendors ${where} ORDER BY id DESC LIMIT 200`,
     bind
   )
 
@@ -874,17 +1134,29 @@ app.get('/api/vendors', async (c) => {
     enriched.sort((a, b) => (b.rating_avg || 0) - (a.rating_avg || 0) || (b.rating_count || 0) - (a.rating_count || 0))
   }
 
-  const vendors = enriched.map((v) => ({
-    id: v.id,
-    org_name: v.org_name,
-    type: v.type,
-    tier: v.tier,
-    verified: v.verified,
-    rating_avg: v.rating_avg,
-    rating_count: v.rating_count,
-    open_now: v.open_now,
-    distance_km: v.distance_km,
-  }))
+  const vendors = enriched.map((v) => {
+    let modes: any = null
+    try { modes = v.service_modes_json ? JSON.parse(v.service_modes_json) : null } catch {}
+    return {
+      id: v.id,
+      org_name: v.org_name,
+      type: v.type,
+      tier: v.tier,
+      verified: v.verified,
+      rating_avg: v.rating_avg,
+      rating_count: v.rating_count,
+      open_now: v.open_now,
+      distance_km: v.distance_km,
+      image_url: v.image_url,
+      cuisine: v.cuisine,
+      price_range: v.price_range,
+      delivery_fee_cents: v.delivery_fee_cents,
+      eta_min: v.eta_min,
+      eta_max: v.eta_max,
+      promo_text: v.promo_text,
+      service_modes: modes,
+    }
+  })
   return c.json({ vendors })
 })
 
@@ -939,12 +1211,13 @@ app.get('/api/vendors/:id/reviews', async (c) => {
 app.post('/api/vendors/:id/reviews', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
-  const body = await c.req.json<{ user_id?: number; rating: number; text?: string }>()
+  const body = await c.req.json<{ user_id?: number; rating: number; text?: string; author_name?: string }>()
   const userId = body.user_id ?? 1 // demo user
   const rating = Math.max(1, Math.min(5, Number(body.rating)))
+  const author = (body.author_name || '').trim().slice(0, 40) || 'Menu Customer'
   await db
-    .prepare(`INSERT INTO reviews (user_id, vendor_id, rating, text, status) VALUES (?, ?, ?, ?, 'published')`)
-    .bind(userId, id, rating, body.text || null)
+    .prepare(`INSERT INTO reviews (user_id, vendor_id, rating, text, status, author_name) VALUES (?, ?, ?, ?, 'published', ?)`)
+    .bind(userId, id, rating, body.text || null, author)
     .run()
   // Update aggregate rating (simple recalculation)
   const agg = await queryOne<{ avg: number; count: number }>(
@@ -1155,10 +1428,12 @@ app.post('/api/orders', async (c) => {
   type ItemReq = { item_id: number; qty: number; selected_options?: number[] }
   const body = await c
     .req
-    .json<{ vendor_id: number; type: string; items: ItemReq[]; user_id?: number; tip_cents?: number; promo_code?: string; distance_km?: number; loyalty_points?: number }>({ vendor_id: 0, type: 'pickup', items: [] } as any)
+    .json<{ vendor_id: number; type: string; items: ItemReq[]; user_id?: number; tip_cents?: number; promo_code?: string; distance_km?: number; loyalty_points?: number; priority?: boolean }>({ vendor_id: 0, type: 'pickup', items: [] } as any)
   const userId = body.user_id ?? 1 // demo user
   const vendorId = body.vendor_id
   const type = body.type === 'delivery' ? 'delivery' : 'pickup'
+  const vendorRow = await queryOne<any>(db, 'SELECT * FROM vendors WHERE id = ?', [vendorId])
+  if (!vendorRow) return c.json({ error: 'vendor_not_found' }, 400)
   // pricing
   let subtotal = 0
   const pricedItems: Array<{ item_id: number; qty: number; unit_price: number; line_total: number; selected_options: number[]; name: string }> = []
@@ -1181,14 +1456,27 @@ app.post('/api/orders', async (c) => {
     pricedItems.push({ item_id: row.id, qty, unit_price: unit, line_total: line, selected_options: opts, name: row.name })
   }
   const taxes = Math.round(subtotal * 0.08)
-  let fees = type === 'delivery' ? 399 : 99
+  // Fees: vendor's advertised delivery fee (fallback to distance formula), 5% service fee, optional priority
+  const serviceFee = Math.round(subtotal * 0.05)
+  const priorityFee = body.priority && type === 'delivery' ? 149 : 0
+  let deliveryFee = 0
+  if (type === 'delivery') {
+    if (vendorRow.delivery_fee_cents != null) {
+      deliveryFee = Number(vendorRow.delivery_fee_cents)
+    } else if (typeof body.distance_km === 'number' && !Number.isNaN(body.distance_km) && body.distance_km > 0) {
+      deliveryFee = Math.round(199 + Math.max(0, Number(body.distance_km)) * 80)
+    } else {
+      deliveryFee = 399
+    }
+  }
+  let fees = deliveryFee + serviceFee + priorityFee
   let etaStr: string | null = null
-  if (type === 'delivery' && typeof body.distance_km === 'number' && !Number.isNaN(body.distance_km) && body.distance_km > 0) {
-    const km = Math.max(0, Number(body.distance_km))
-    const quoteFee = Math.round(199 + km * 80)
-    fees += quoteFee
-    const eta_minutes = 30 + Math.round(km * 4)
-    etaStr = `${eta_minutes}m`
+  if (type === 'delivery') {
+    const lo = Number(vendorRow.eta_min || 25)
+    const hi = Number(vendorRow.eta_max || 40)
+    etaStr = body.priority ? `${Math.max(5, lo - 7)}-${Math.max(10, hi - 7)}m` : `${lo}-${hi}m`
+  } else {
+    etaStr = `${Math.max(10, Number(vendorRow.eta_min || 15) - 5)}m`
   }
   // promo: simple demo - SAVE10 gives 10% off up to $5
   let discount = 0
@@ -1261,8 +1549,9 @@ app.get('/api/orders/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const order = await queryOne<any>(db, 'SELECT * FROM orders WHERE id = ?', [id])
   if (!order) return c.notFound()
-  const items = await queryAll<any>(db, 'SELECT oi.*, mi.name AS item_name FROM order_items oi JOIN menu_items mi ON mi.id = oi.item_id WHERE oi.order_id = ?', [id])
-  return c.json({ order, items })
+  const items = await queryAll<any>(db, 'SELECT oi.*, mi.name AS item_name, mi.photo AS item_photo FROM order_items oi JOIN menu_items mi ON mi.id = oi.item_id WHERE oi.order_id = ?', [id])
+  const vendor = await queryOne<any>(db, 'SELECT id, org_name, image_url, cuisine, eta_min, eta_max FROM vendors WHERE id = ?', [order.vendor_id])
+  return c.json({ order, items, vendor })
 })
 
 app.post('/api/orders/:id/status', async (c) => {

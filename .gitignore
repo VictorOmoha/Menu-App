@@ -6,3 +6,6 @@ dist/
 *.log
 .DS_Store
 .storybook-cache/
+
+# Local Claude Code preview config
+.claude/
