@@ -26,6 +26,9 @@ app.use('/api/*', async (c, next) => {
 // Serve static assets from public/ at /static/*
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// Browsers request /favicon.ico automatically — point it at the SVG icon
+app.get('/favicon.ico', (c) => c.redirect('/static/favicon.svg', 301))
+
 // Renderer for SSR shell
 app.use(renderer)
 

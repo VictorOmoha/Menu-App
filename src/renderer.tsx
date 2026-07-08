@@ -8,6 +8,7 @@ export const renderer = jsxRenderer(({ children }) => {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Menu — Local food, delivered</title>
         <meta name="theme-color" content="#EB1700" />
+        <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
