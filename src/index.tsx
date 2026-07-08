@@ -155,12 +155,12 @@ app.get('/', async (c) => {
 
       {/* Hero — DoorDash-style brand red with address entry */}
       <section class="relative overflow-hidden" style="background:#EB1700">
-        <img src={IMG('1565299585323-38d6b0865b47', 900)} alt="" class="hidden md:block absolute -left-16 -top-16 w-72 h-72 object-cover rounded-full opacity-95 rotate-[-8deg] shadow-2xl" />
-        <img src={IMG('1568901346375-23c9450c58cd', 900)} alt="" class="hidden md:block absolute -right-20 top-8 w-80 h-80 object-cover rounded-full opacity-95 rotate-[7deg] shadow-2xl" />
+        <img src={IMG('1512058564366-18510be2db19', 900)} alt="" class="hidden md:block absolute -left-16 -top-16 w-72 h-72 object-cover rounded-full opacity-95 rotate-[-8deg] shadow-2xl" />
+        <img src={IMG('1529006557810-274b9b2fc783', 900)} alt="" class="hidden md:block absolute -right-20 top-8 w-80 h-80 object-cover rounded-full opacity-95 rotate-[7deg] shadow-2xl" />
         <img src={IMG('1555507036-ab1f4038808a', 700)} alt="" class="hidden lg:block absolute right-40 -bottom-24 w-56 h-56 object-cover rounded-full opacity-90 shadow-2xl" />
         <div class="relative max-w-3xl mx-auto px-6 py-20 md:py-28 text-center">
-          <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white">Discover local flavors, delivered.</h1>
-          <p class="mt-4 text-lg md:text-xl text-white/90">Restaurants, food trucks, home chefs and bakeries — from your neighborhood to your door.</p>
+          <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white">Lagos &amp; Abuja flavors, delivered.</h1>
+          <p class="mt-4 text-lg md:text-xl text-white/90">From buka classics and suya nights to pizza and sushi — restaurants, food trucks, home chefs and bakeries at your door.</p>
           <form action="/app" method="get" class="mt-8 max-w-xl mx-auto flex items-center gap-2 bg-white rounded-full p-2 pl-5 shadow-2xl">
             <i class="fa-solid fa-location-dot text-gray-500"></i>
             <input name="addr" placeholder="Enter delivery address" class="flex-1 min-w-0 outline-none text-[15px] text-gray-900 placeholder-gray-500 bg-transparent" />
@@ -178,21 +178,21 @@ app.get('/', async (c) => {
       <section class="max-w-7xl mx-auto px-6 pt-16 pb-6">
         <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight">Explore by craving</h2>
         <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <a href="/app#/?cat=Jollof" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
+            <div class="font-bold text-lg">Jollof</div>
+            <img src={IMG('1512058564366-18510be2db19', 400)} alt="Jollof rice" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
+          </a>
+          <a href="/app#/?cat=Suya+%26+Grills" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
+            <div class="font-bold text-lg">Suya &amp; Grills</div>
+            <img src={IMG('1529006557810-274b9b2fc783', 400)} alt="Suya" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
+          </a>
+          <a href="/app#/?cat=Swallow" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
+            <div class="font-bold text-lg">Amala &amp; Swallow</div>
+            <img src={IMG('1547592166-23ac45744acd', 400)} alt="Amala and soup" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
+          </a>
           <a href="/app#/?cat=Pizza" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
             <div class="font-bold text-lg">Pizza</div>
             <img src={IMG('1513104890138-7c749659a591', 400)} alt="Pizza" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
-          </a>
-          <a href="/app#/?cat=Mexican" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
-            <div class="font-bold text-lg">Tacos</div>
-            <img src={IMG('1565299585323-38d6b0865b47', 400)} alt="Tacos" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
-          </a>
-          <a href="/app#/?cat=Sushi" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
-            <div class="font-bold text-lg">Sushi</div>
-            <img src={IMG('1579871494447-9811cf80d66c', 400)} alt="Sushi" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
-          </a>
-          <a href="/app#/?cat=Bakery" class="relative overflow-hidden rounded-2xl border border-gray-200 h-36 p-5 hover:shadow-lg transition-shadow bg-white">
-            <div class="font-bold text-lg">Bakery</div>
-            <img src={IMG('1555507036-ab1f4038808a', 400)} alt="Bakery" class="absolute -bottom-7 -right-7 w-28 h-28 rounded-full object-cover" />
           </a>
         </div>
       </section>
@@ -224,7 +224,7 @@ app.get('/', async (c) => {
         <div class="rounded-3xl overflow-hidden grid md:grid-cols-2" style="background:#191919">
           <div class="p-10 md:p-14 text-white">
             <h3 class="text-2xl md:text-3xl font-extrabold tracking-tight">Grow your business with Menu</h3>
-            <p class="mt-3 text-white/80">Reach new customers and manage orders, menus, loyalty, reservations and group orders — all in one place.</p>
+            <p class="mt-3 text-white/80">From Lekki to Wuse 2 — reach new customers and manage orders, menus, loyalty, reservations and group orders in one place.</p>
             <a href="/app#/vendor/join" class="mt-6 inline-block px-6 py-3 rounded-full text-white text-sm font-bold" style="background:#EB1700">Join as a vendor</a>
           </div>
           <img src={IMG('1556910103-1c02745aae4d', 900)} alt="Chef preparing food" class="w-full h-64 md:h-full object-cover" />
@@ -340,285 +340,273 @@ type SeedVendor = {
   org_name: string; type: string; cuisine: string; tier?: string; price_range: number
   rating: number; ratings: number; image: string; promo?: string | null
   fee: number; eta_min: number; eta_max: number; modes: any; live?: boolean
-  lat: number; lng: number; address: string
+  city: string; lat: number; lng: number; address: string
   sections: Array<{ name: string; items: SeedItem[] }>
   reviews: Array<[string, number, string]>
 }
 
-const SALSA_OPTS = { name: 'Salsa', min: 0, max: 2, required: false, choices: [['Mild', 0], ['Hot', 0], ['Extra Hot', 0]] as Array<[string, number]> }
-const TACO_ADDONS = { name: 'Add-ons', min: 0, max: 3, required: false, choices: [['Guacamole', 150], ['Extra Meat', 200], ['Queso', 100]] as Array<[string, number]> }
+const HEAT_OPTS = { name: 'Pepper Level', min: 1, max: 1, required: true, choices: [['Mild', 0], ['Medium', 0], ['Extra Pepper', 0]] as Array<[string, number]> }
+const PROTEIN_NG = { name: 'Protein', min: 1, max: 1, required: true, choices: [['Chicken', 0], ['Beef', 0], ['Goat Meat', 50000], ['Croaker Fish', 80000]] as Array<[string, number]> }
+const SWALLOW_OPTS = { name: 'Choice of Swallow', min: 1, max: 1, required: true, choices: [['Eba', 0], ['Amala', 0], ['Semovita', 0], ['Pounded Yam', 30000]] as Array<[string, number]> }
+const MEAT_ADDONS = { name: 'Meat Add-ons', min: 0, max: 3, required: false, choices: [['Assorted Meat', 150000], ['Ponmo', 80000], ['Shaki', 100000], ['Boiled Egg', 30000]] as Array<[string, number]> }
 
 const RICH_VENDORS: SeedVendor[] = [
   {
-    org_name: 'Sunset Tacos', type: 'truck', cuisine: 'Mexican', price_range: 1, rating: 4.6, ratings: 2130,
-    image: IMG('1565299585323-38d6b0865b47', 1200), promo: '20% off, up to $5', fee: 0, eta_min: 15, eta_max: 25,
-    modes: { pickup: true, delivery: true }, live: true, lat: 37.7749, lng: -122.4194, address: '123 5th Ave',
+    org_name: 'Jollof & Grills Co.', type: 'restaurant', cuisine: 'Jollof', price_range: 2, rating: 4.7, ratings: 2130,
+    image: IMG('1512058564366-18510be2db19', 1200), promo: '20% off, up to ₦2,000', fee: 0, eta_min: 25, eta_max: 40,
+    modes: { pickup: true, delivery: true, dinein: true }, city: 'Lagos', lat: 6.4478, lng: 3.4723, address: '14 Admiralty Way, Lekki Phase 1',
     sections: [
-      { name: 'Tacos', items: [
-        { name: 'Al Pastor Taco', desc: 'Marinated pork, charred pineapple, cilantro & onion', price: 450, photo: IMG('1599974579688-8dbdd335c77f'), popular: true, options: [SALSA_OPTS, TACO_ADDONS] },
-        { name: 'Carne Asada Taco', desc: 'Grilled steak, salsa verde, lime', price: 500, photo: IMG('1551504734-5ee1c4a1479b'), popular: true, options: [SALSA_OPTS, TACO_ADDONS] },
-        { name: 'Baja Fish Taco', desc: 'Crispy cod, chipotle crema, cabbage slaw', price: 550, photo: IMG('1512838243191-e81e8f66f1fd'), options: [SALSA_OPTS] },
-        { name: 'Chicken Tinga Taco', desc: 'Slow-braised chipotle chicken', price: 450, options: [SALSA_OPTS, TACO_ADDONS] },
+      { name: 'Jollof Specials', items: [
+        { name: 'Party Jollof & Grilled Chicken', desc: 'Smoky party-style jollof, grilled chicken lap, dodo', price: 450000, photo: IMG('1512058564366-18510be2db19'), popular: true, options: [HEAT_OPTS] },
+        { name: 'Smoky Jollof & Beef', desc: 'Firewood-flavour jollof, peppered beef cubes', price: 480000, popular: true, options: [HEAT_OPTS] },
+        { name: 'Jollof & Grilled Croaker', desc: 'Whole grilled croaker fish, pepper sauce', price: 650000 },
+        { name: 'Coconut Fried Rice & Chicken', desc: 'Coconut-infused fried rice, mixed veg', price: 420000 },
       ]},
-      { name: 'Burritos', items: [
-        { name: 'California Burrito', desc: 'Carne asada, fries, cheese, guac & pico', price: 1150, photo: IMG('1626700051175-6818013e1d4f'), popular: true },
-        { name: 'Carnitas Burrito', desc: 'Slow-cooked pork, rice, beans, salsa roja', price: 1090 },
+      { name: 'Grills', items: [
+        { name: 'Half Grilled Chicken', desc: 'Char-grilled, house pepper marinade', price: 550000, photo: IMG('1529193591184-b1d58069ecdd'), popular: true, options: [HEAT_OPTS] },
+        { name: 'Peppered Gizzard', desc: 'Wok-tossed gizzard in ata dindin', price: 300000 },
       ]},
       { name: 'Sides & Drinks', items: [
-        { name: 'Chips & Guacamole', desc: 'Fresh tortilla chips, hand-smashed guac', price: 650, photo: IMG('1548839140-29a749e1cf4d') },
-        { name: 'Elote', desc: 'Street corn, cotija, chile-lime mayo', price: 500 },
-        { name: 'Horchata', desc: 'House-made, cinnamon rice milk', price: 400 },
+        { name: 'Fried Plantain (Dodo)', desc: 'Sweet, caramelized', price: 120000 },
+        { name: 'Moi Moi', desc: 'Steamed bean pudding, egg inside', price: 100000 },
+        { name: 'Chapman', desc: 'Classic Lagos Chapman with cucumber', price: 150000 },
+        { name: 'Zobo', desc: 'Chilled hibiscus, ginger & pineapple', price: 80000 },
       ]},
     ],
-    reviews: [ ['Maya R.', 5, 'Best al pastor in the city. The truck is fast even at lunch rush.'], ['Devon K.', 5, 'California burrito is enormous and perfect.'], ['Ana P.', 4, 'Great tacos, salsa bar is amazing. Parking can be tricky.'] ],
+    reviews: [ ['Funke A.', 5, 'This jollof tastes like proper owambe party rice. The smokiness is real!'], ['Chinedu O.', 5, 'Ordered for the whole office. Everybody kept quiet while eating — that says it all.'], ['Bisi L.', 4, 'Chicken was juicy, jollof arrived hot in Lekki traffic. Impressive.'] ],
   },
   {
-    org_name: 'Burger & Shake Society', type: 'restaurant', cuisine: 'Burgers', price_range: 2, rating: 4.4, ratings: 3240,
-    image: IMG('1568901346375-23c9450c58cd', 1200), promo: '$0 delivery fee', fee: 0, eta_min: 15, eta_max: 25,
-    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.781, lng: -122.414, address: '88 Grove St',
-    sections: [
-      { name: 'Burgers', items: [
-        { name: 'Classic Smash', desc: 'Two smashed patties, American cheese, house sauce', price: 990, photo: IMG('1568901346375-23c9450c58cd'), popular: true, options: [
-          { name: 'Toppings', min: 0, max: 4, required: false, choices: [['Bacon', 200], ['Avocado', 150], ['Fried Egg', 150], ['Grilled Onions', 0]] },
-          { name: 'Temperature', min: 1, max: 1, required: true, choices: [['Medium', 0], ['Medium Well', 0], ['Well Done', 0]] },
-        ]},
-        { name: 'Double Trouble', desc: 'Four patties, double cheese, pickles', price: 1350, photo: IMG('1550317138-10000687a72b'), popular: true },
-        { name: 'Truffle Burger', desc: 'Truffle aioli, swiss, crispy shallots', price: 1490, photo: IMG('1551782450-a2132b4ba21d') },
-        { name: 'Impossible Burger', desc: 'Plant-based patty, vegan cheddar (vegetarian)', price: 1250 },
-      ]},
-      { name: 'Fries & Sides', items: [
-        { name: 'Classic Fries', desc: 'Crispy, sea salt', price: 450, photo: IMG('1573080496219-bb080dd4f877'), popular: true },
-        { name: 'Garlic Parm Fries', desc: 'Garlic butter, shredded parmesan', price: 590 },
-        { name: 'Loaded Fries', desc: 'Cheese sauce, bacon, scallions', price: 750 },
-      ]},
-      { name: 'Shakes', items: [
-        { name: 'Oreo Shake', desc: 'Hand-spun, real cookies', price: 650, photo: IMG('1563805042-7684c019e1cb') },
-        { name: 'Vanilla Bean Shake', desc: 'Madagascar vanilla', price: 650 },
-      ]},
-    ],
-    reviews: [ ['Jordan T.', 4, 'Smash burgers done right. Fries stayed crispy through delivery.'], ['Sam W.', 5, 'Oreo shake is dangerously good.'], ['Priya N.', 4, 'Solid, fast, consistent.'] ],
-  },
-  {
-    org_name: 'Brick Oven Pizza Co.', type: 'restaurant', cuisine: 'Pizza', price_range: 2, rating: 4.5, ratings: 1420,
-    image: IMG('1513104890138-7c749659a591', 1200), promo: 'Free delivery over $20', fee: 99, eta_min: 25, eta_max: 40,
-    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.788, lng: -122.407, address: '210 Columbus Ave',
-    sections: [
-      { name: 'Pizzas', items: [
-        { name: 'Margherita', desc: 'San Marzano tomato, fresh mozzarella, basil', price: 1400, photo: IMG('1574071318508-1cdbab80d002'), popular: true, options: [
-          { name: 'Size', min: 1, max: 1, required: true, choices: [['12" Regular', 0], ['16" Large', 600]] },
-          { name: 'Extras', min: 0, max: 3, required: false, choices: [['Extra Mozzarella', 250], ['Prosciutto', 400], ['Chili Honey', 150]] },
-        ]},
-        { name: 'Pepperoni', desc: 'Cup-and-char pepperoni, aged mozzarella', price: 1600, photo: IMG('1628840042765-356cda07504e'), popular: true, options: [
-          { name: 'Size', min: 1, max: 1, required: true, choices: [['12" Regular', 0], ['16" Large', 600]] },
-        ]},
-        { name: 'Truffle Mushroom', desc: 'Wild mushrooms, taleggio, truffle oil', price: 1850 },
-        { name: 'BBQ Chicken', desc: 'Smoked chicken, red onion, cilantro', price: 1700 },
-      ]},
-      { name: 'Wings & Sides', items: [
-        { name: 'Buffalo Wings', desc: '8 pc, blue cheese dip', price: 1100, photo: IMG('1608039755401-742074f0548d') },
-        { name: 'Garlic Knots', desc: '6 pc, parmesan, marinara', price: 650 },
-      ]},
-      { name: 'Desserts', items: [
-        { name: 'Tiramisu', desc: 'Espresso-soaked, house mascarpone', price: 800, photo: IMG('1571877227200-a0d98ea607e9') },
-      ]},
-    ],
-    reviews: [ ['Gina L.', 5, 'Real-deal neapolitan crust. Margherita is perfect.'], ['Marco D.', 4, 'Great pizza, arrived hot. Knots are a must.'], ['Chris B.', 4, 'Truffle mushroom pie is worth every penny.'] ],
-  },
-  {
-    org_name: 'Tokyo Sushi Bar', type: 'restaurant', cuisine: 'Sushi', price_range: 3, rating: 4.8, ratings: 720,
-    image: IMG('1579871494447-9811cf80d66c', 1200), promo: null, fee: 399, eta_min: 30, eta_max: 45,
-    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.785, lng: -122.431, address: '1580 Post St',
-    sections: [
-      { name: 'Signature Rolls', items: [
-        { name: 'Dragon Roll', desc: 'Eel, cucumber, avocado, tobiko', price: 1500, photo: IMG('1579871494447-9811cf80d66c'), popular: true },
-        { name: 'Rainbow Roll', desc: 'California roll topped with chef’s selection', price: 1600, photo: IMG('1553621042-f6e147245754'), popular: true },
-        { name: 'Spicy Tuna Roll', desc: 'Ahi tuna, spicy mayo, scallion', price: 1100 },
-        { name: 'California Roll', desc: 'Snow crab, avocado, cucumber', price: 900 },
-      ]},
-      { name: 'Nigiri & Sashimi', items: [
-        { name: 'Salmon Nigiri (2pc)', desc: 'Scottish salmon', price: 700, photo: IMG('1534482421-64566f976cfa') },
-        { name: 'Bluefin Tuna Nigiri (2pc)', desc: 'Line-caught', price: 800 },
-        { name: 'Sashimi Platter', desc: '12 pc chef’s selection', price: 2400 },
-      ]},
-      { name: 'Appetizers', items: [
-        { name: 'Edamame', desc: 'Sea salt or spicy garlic', price: 550, options: [ { name: 'Style', min: 1, max: 1, required: true, choices: [['Sea Salt', 0], ['Spicy Garlic', 50]] } ] },
-        { name: 'Pork Gyoza (5pc)', desc: 'Pan-fried, ponzu', price: 750, photo: IMG('1496116218417-1a781b1c416c') },
-        { name: 'Miso Soup', desc: 'Tofu, wakame, scallion', price: 400 },
-      ]},
-    ],
-    reviews: [ ['Kenji M.', 5, 'Fish quality rivals places twice the price.'], ['Lauren S.', 5, 'Dragon roll presentation is stunning, even delivered.'], ['Tom H.', 4, 'Pricey but worth it for a treat.'] ],
-  },
-  {
-    org_name: 'Green Bowl Kitchen', type: 'restaurant', cuisine: 'Healthy', price_range: 2, rating: 4.7, ratings: 860,
-    image: IMG('1512621776951-a57141f2eefd', 1200), promo: 'Buy 1, Get 1 Free', fee: 199, eta_min: 20, eta_max: 30,
-    modes: { pickup: true, delivery: true }, lat: 37.79, lng: -122.42, address: '500 Market St',
-    sections: [
-      { name: 'Bowls', items: [
-        { name: 'Green Goddess', desc: 'Kale, quinoa, avocado, green tahini', price: 1300, photo: IMG('1512621776951-a57141f2eefd'), popular: true, options: [
-          { name: 'Protein', min: 1, max: 1, required: true, choices: [['Tofu', 0], ['Chicken', 200], ['Salmon', 400]] },
-        ]},
-        { name: 'Harvest Bowl', desc: 'Roasted sweet potato, wild rice, goat cheese', price: 1250, photo: IMG('1546069901-ba9599a7e63c'), popular: true, options: [
-          { name: 'Protein', min: 1, max: 1, required: true, choices: [['Tofu', 0], ['Chicken', 200], ['Steak', 350]] },
-        ]},
-        { name: 'Spicy Tofu Bowl', desc: 'Gochujang tofu, brown rice, pickled veg (vegan)', price: 1190 },
-      ]},
-      { name: 'Salads', items: [
-        { name: 'Kale Caesar', desc: 'Lacinato kale, sourdough crumb, white anchovy', price: 1050, photo: IMG('1550304943-4f24f54ddde9') },
-        { name: 'Mediterranean Crunch', desc: 'Chickpeas, feta, cucumber, sumac vinaigrette', price: 1100 },
-      ]},
-      { name: 'Smoothies & Juice', items: [
-        { name: 'Berry Blast Smoothie', desc: 'Triple berry, banana, oat milk', price: 750, photo: IMG('1505252585461-04db1eb84625') },
-        { name: 'Green Machine Juice', desc: 'Celery, apple, ginger, lemon', price: 800 },
-      ]},
-    ],
-    reviews: [ ['Elena V.', 5, 'The only salad place where delivery still tastes fresh.'], ['Marcus J.', 4, 'Harvest bowl with steak is my weekly order.'], ['Kim O.', 5, 'Vegan options that actually have flavor.'] ],
-  },
-  {
-    org_name: "Nia's Kitchen", type: 'home_chef', cuisine: 'West African', price_range: 2, rating: 4.9, ratings: 312,
-    image: IMG('1512058564366-18510be2db19', 1200), promo: null, fee: 299, eta_min: 35, eta_max: 50,
-    modes: { pickup: true, delivery: true }, lat: 37.78, lng: -122.41, address: '12 Baker St',
+    org_name: "Mama Put Kitchen", type: 'home_chef', cuisine: 'Nigerian', price_range: 2, rating: 4.9, ratings: 312,
+    image: IMG('1585937421612-70a008356fbe', 1200), promo: null, fee: 70000, eta_min: 35, eta_max: 50,
+    modes: { pickup: true, delivery: true }, city: 'Lagos', lat: 6.5095, lng: 3.3711, address: '23 Herbert Macaulay Way, Yaba',
     sections: [
       { name: 'Home Meals', items: [
-        { name: 'Jollof Rice & Chicken', desc: 'Smoky party jollof, grilled chicken thigh, plantains', price: 1400, photo: IMG('1512058564366-18510be2db19'), popular: true, options: [
-          { name: 'Heat Level', min: 1, max: 1, required: true, choices: [['Mild', 0], ['Medium', 0], ['Naija Hot', 0]] },
-        ]},
-        { name: 'Egusi & Pounded Yam', desc: 'Melon seed stew, spinach, assorted meat', price: 1600, popular: true },
-        { name: 'Suya Skewers (3pc)', desc: 'Peanut-spiced grilled beef, red onion', price: 1200, photo: IMG('1529006557810-274b9b2fc783') },
-        { name: 'Sweet Fried Plantains', desc: 'Caramelized dodo', price: 600 },
+        { name: 'Egusi Soup & Swallow', desc: 'Melon seed soup, spinach, assorted meat', price: 550000, popular: true, options: [SWALLOW_OPTS, MEAT_ADDONS] },
+        { name: 'Efo Riro & Swallow', desc: 'Rich vegetable soup, smoked fish & ponmo', price: 480000, options: [SWALLOW_OPTS, MEAT_ADDONS] },
+        { name: 'Ofada Rice & Ayamase', desc: 'Local rice, designer green-pepper stew, assorted', price: 500000, photo: IMG('1512058564366-18510be2db19'), popular: true, options: [HEAT_OPTS] },
+        { name: 'Native Rice (Iwuk Edesi)', desc: 'Palm-oil rice with dried fish & crayfish', price: 420000 },
       ]},
       { name: 'Weekend Specials', items: [
-        { name: 'Waakye Bowl', desc: 'Rice & beans, gari, boiled egg, shito (Sat/Sun)', price: 1350 },
-        { name: 'Chin Chin (Snack Bag)', desc: 'Crunchy-sweet, house recipe', price: 450 },
+        { name: 'Nkwobi', desc: 'Spicy cow-foot in palm-oil paste (Sat/Sun)', price: 450000 },
+        { name: 'Isi Ewu', desc: 'Goat head delicacy, utazi leaves (Sat/Sun)', price: 600000 },
       ]},
     ],
-    reviews: [ ['Adaeze O.', 5, 'Tastes like my grandmother’s cooking. The real thing.'], ['Femi A.', 5, 'Jollof has actual smoke flavor. Order the suya too.'], ['Rachel G.', 5, 'Chef Nia puts love in every container.'] ],
+    reviews: [ ['Adaeze O.', 5, 'Tastes exactly like my grandmother in the village used to make. The real thing.'], ['Emeka N.', 5, 'The egusi is loaded — actual meat, not decoration. Chef Mama is a legend.'], ['Yemi S.', 5, 'Ofada with extra ayamase... I nearly cried. 10/10.'] ],
   },
   {
-    org_name: 'Seoul Street BBQ', type: 'truck', cuisine: 'Korean', price_range: 2, rating: 4.7, ratings: 1180,
-    image: IMG('1529193591184-b1d58069ecdd', 1200), promo: '15% off orders $30+', fee: 149, eta_min: 20, eta_max: 30,
-    modes: { pickup: true, delivery: true }, live: true, lat: 37.776, lng: -122.424, address: 'Civic Center Plaza',
+    org_name: 'Suya Republic', type: 'street', cuisine: 'Suya & Grills', price_range: 1, rating: 4.6, ratings: 1800,
+    image: IMG('1529006557810-274b9b2fc783', 1200), promo: 'Free delivery over ₦10,000', fee: 50000, eta_min: 20, eta_max: 35,
+    modes: { pickup: true, delivery: true }, live: true, city: 'Lagos', lat: 6.4281, lng: 3.4219, address: 'Adeola Odeku St, Victoria Island',
     sections: [
-      { name: 'Plates', items: [
-        { name: 'Bulgogi Plate', desc: 'Soy-marinated ribeye, rice, banchan', price: 1450, photo: IMG('1529193591184-b1d58069ecdd'), popular: true },
-        { name: 'Spicy Pork Plate', desc: 'Gochujang pork belly, kimchi, rice', price: 1390, popular: true },
-        { name: 'Tofu Bibimbap', desc: 'Crispy tofu, seasonal veg, fried egg, gochujang (vegetarian)', price: 1250, photo: IMG('1553163147-622ab57be1c7') },
+      { name: 'Suya', items: [
+        { name: 'Beef Suya', desc: 'Thin-cut beef, yaji spice, onions & fresh pepper', price: 300000, photo: IMG('1529006557810-274b9b2fc783'), popular: true, options: [HEAT_OPTS, { name: 'Extras', min: 0, max: 3, required: false, choices: [['Extra Yaji', 0], ['Onions & Tomato', 20000], ['Agege Bread', 60000]] }] },
+        { name: 'Chicken Suya', desc: 'Boneless chicken thigh, charcoal-grilled', price: 350000, options: [HEAT_OPTS] },
+        { name: 'Ram Suya', desc: 'Premium ram cuts — the connoisseur choice', price: 500000, popular: true, options: [HEAT_OPTS] },
       ]},
-      { name: 'Street Food', items: [
-        { name: 'Korean Corn Dog', desc: 'Mozzarella, panko, sugar dust', price: 750, popular: true },
-        { name: 'Tteokbokki', desc: 'Chewy rice cakes, sweet-spicy sauce', price: 890 },
-        { name: 'Kimchi Fries', desc: 'Bulgogi, kimchi, gochujang aioli, scallion', price: 950 },
+      { name: 'Night Grills', items: [
+        { name: 'Asun (Spicy Goat)', desc: 'Smoked goat meat tossed in scotch bonnet', price: 450000, photo: IMG('1544025162-d76694265947'), popular: true },
+        { name: 'Peppered Snail', desc: 'Giant snails, ata dindin glaze', price: 600000 },
+        { name: 'Grilled Catfish', desc: 'Whole catfish, pepper sauce & side dodo', price: 750000 },
       ]},
     ],
-    reviews: [ ['Hana C.', 5, 'Corn dog stretch is unreal. Track the truck, it moves!'], ['Diego F.', 4, 'Bulgogi plate portions are generous.'], ['Wes P.', 5, 'Kimchi fries = elite drunk food.'] ],
+    reviews: [ ['Tunde B.', 5, 'Mai suya energy with restaurant hygiene. Yaji is perfectly balanced.'], ['Zainab M.', 4, 'Asun is dangerously peppery — exactly how it should be.'], ['Ibrahim K.', 5, 'They track the cart live like Uber. Suya at my door in 25 mins, VI to Ikoyi.'] ],
   },
   {
-    org_name: 'Golden Dragon Noodles', type: 'restaurant', cuisine: 'Chinese', price_range: 1, rating: 4.3, ratings: 940,
-    image: IMG('1585032226651-759b368d7246', 1200), promo: null, fee: 249, eta_min: 20, eta_max: 35,
-    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.794, lng: -122.406, address: '733 Washington St',
+    org_name: 'Shawarma King', type: 'truck', cuisine: 'Shawarma', price_range: 1, rating: 4.5, ratings: 2400,
+    image: IMG('1626700051175-6818013e1d4f', 1200), promo: 'Buy 1, Get 1 Free', fee: 60000, eta_min: 20, eta_max: 30,
+    modes: { pickup: true, delivery: true }, live: true, city: 'Abuja', lat: 9.081, lng: 7.4951, address: 'Aminu Kano Crescent, Wuse 2',
     sections: [
-      { name: 'Noodles', items: [
-        { name: 'Dan Dan Noodles', desc: 'Sichuan chili oil, minced pork, peanut', price: 1250, photo: IMG('1585032226651-759b368d7246'), popular: true },
-        { name: 'Beef Chow Fun', desc: 'Wok-charred wide rice noodles', price: 1390, popular: true },
-        { name: 'Veggie Lo Mein', desc: 'Seasonal vegetables, scallion oil (vegan)', price: 1090 },
+      { name: 'Shawarma', items: [
+        { name: 'Chicken Shawarma', desc: 'Double-wrapped, creamy garlic sauce, crunchy veg', price: 350000, photo: IMG('1626700051175-6818013e1d4f'), popular: true, options: [{ name: 'Extras', min: 0, max: 3, required: false, choices: [['Double Sausage', 80000], ['Extra Chicken', 120000], ['Extra Cheese', 50000]] }] },
+        { name: 'Beef Shawarma', desc: 'Spiced beef strips, chilli mayo', price: 380000 },
+        { name: 'Mixed Shawarma', desc: 'Chicken + beef + double sausage. The heavyweight.', price: 450000, popular: true },
       ]},
-      { name: 'Dumplings', items: [
-        { name: 'Pork Soup Dumplings (6pc)', desc: 'Hand-pleated XLB', price: 890, photo: IMG('1496116218417-1a781b1c416c'), popular: true },
-        { name: 'Veggie Dumplings (6pc)', desc: 'Cabbage, shiitake, glass noodle (vegan)', price: 850 },
-      ]},
-      { name: 'Rice', items: [
-        { name: 'Yangzhou Fried Rice', desc: 'Shrimp, BBQ pork, egg', price: 990 },
+      { name: 'Sides & Drinks', items: [
+        { name: 'Loaded Fries', desc: 'Fries, cheese sauce, chicken bits', price: 280000, photo: IMG('1573080496219-bb080dd4f877') },
+        { name: 'Vanilla Milkshake', desc: 'Thick, hand-spun', price: 250000 },
+        { name: 'Chilled Soft Drink', desc: 'Coke, Fanta, Sprite', price: 60000 },
       ]},
     ],
-    reviews: [ ['Vivian Z.', 4, 'XLB survive delivery surprisingly well.'], ['Nate R.', 4, 'Dan dan noodles have proper málà kick.'], ['Iris W.', 5, 'Fast, cheap, delicious.'] ],
+    reviews: [ ['Aisha U.', 5, 'Best shawarma in Abuja, no debate. The garlic sauce is addictive.'], ['Segun P.', 4, 'Mixed shawarma is a full meal and a half.'], ['Halima Y.', 5, 'BOGO deal on Fridays is criminal value.'] ],
   },
   {
-    org_name: 'La Pâtisserie Dorée', type: 'baker', cuisine: 'Bakery', price_range: 2, rating: 4.9, ratings: 452,
-    image: IMG('1555507036-ab1f4038808a', 1200), promo: '20% off pastries', fee: 199, eta_min: 20, eta_max: 30,
-    modes: { pickup: true, delivery: true }, lat: 37.771, lng: -122.437, address: '2101 Hayes St',
+    org_name: 'Amala Sky', type: 'restaurant', cuisine: 'Swallow', price_range: 1, rating: 4.8, ratings: 950,
+    image: IMG('1547592166-23ac45744acd', 1200), promo: '15% off orders ₦15,000+', fee: 40000, eta_min: 25, eta_max: 40,
+    modes: { pickup: true, delivery: true, dinein: true }, city: 'Lagos', lat: 6.4926, lng: 3.3559, address: '12 Adeniran Ogunsanya St, Surulere',
     sections: [
-      { name: 'Viennoiserie', items: [
-        { name: 'Butter Croissant', desc: '72-hour laminated, French butter', price: 425, photo: IMG('1555507036-ab1f4038808a'), popular: true },
-        { name: 'Pain au Chocolat', desc: 'Valrhona batons', price: 475, popular: true },
-        { name: 'Almond Croissant', desc: 'Twice-baked, frangipane', price: 525 },
+      { name: 'Amala & Abula', items: [
+        { name: 'Amala + Ewedu & Gbegiri (Abula)', desc: 'The Ibadan classic — with buka stew', price: 350000, photo: IMG('1547592166-23ac45744acd'), popular: true, options: [MEAT_ADDONS] },
+        { name: 'Amala + Efo Riro', desc: 'Loaded vegetable soup, smoked panla', price: 400000, options: [MEAT_ADDONS] },
+        { name: 'Amala + Gbegiri only', desc: 'For the purists', price: 280000 },
       ]},
-      { name: 'Cakes & Tarts', items: [
-        { name: 'Chocolate Fondant Slice', desc: '70% dark chocolate', price: 650, photo: IMG('1578985545062-69928b1d9587') },
-        { name: 'Basque Cheesecake Slice', desc: 'Burnt top, custardy center', price: 700 },
-        { name: 'Lemon Tart', desc: 'Torched meringue', price: 675 },
+      { name: 'Street Classics', items: [
+        { name: 'Ewa Agoyin & Agege Bread', desc: 'Mashed beans, scorching black sauce, soft bread', price: 300000, popular: true },
+        { name: 'Asaro (Yam Porridge)', desc: 'Smoky mashed yam, palm oil, dried fish', price: 320000 },
+      ]},
+      { name: 'Drinks', items: [
+        { name: 'Zobo', desc: 'House-brewed, chilled', price: 80000 },
+        { name: 'Palm Wine (50cl)', desc: 'Fresh, chilled', price: 200000 },
+      ]},
+    ],
+    reviews: [ ['Bola F.', 5, 'Abula so good I forgot I was eating with cutlery. Proper buka standard.'], ['Kunle A.', 5, 'The ewa agoyin sauce should be studied in a lab.'], ['Ronke D.', 4, 'Fast delivery within Surulere. Portions are generous.'] ],
+  },
+  {
+    org_name: 'Calabar Pot', type: 'restaurant', cuisine: 'Pepper Soup', price_range: 2, rating: 4.7, ratings: 640,
+    image: IMG('1569718212165-3a8278d5f624', 1200), promo: null, fee: 70000, eta_min: 30, eta_max: 45,
+    modes: { pickup: true, delivery: true, dinein: true }, city: 'Abuja', lat: 9.033, lng: 7.4893, address: 'Area 11, Garki',
+    sections: [
+      { name: 'Pepper Soup', items: [
+        { name: 'Catfish Pepper Soup', desc: 'Fresh point-and-kill catfish, scent leaf, uziza', price: 650000, photo: IMG('1569718212165-3a8278d5f624'), popular: true, options: [HEAT_OPTS] },
+        { name: 'Goat Meat Pepper Soup', desc: 'Tender goat, calabash nutmeg broth', price: 550000, popular: true, options: [HEAT_OPTS] },
+        { name: 'Chicken Pepper Soup', desc: 'Native chicken, light and fiery', price: 450000, options: [HEAT_OPTS] },
+      ]},
+      { name: 'Calabar Kitchen', items: [
+        { name: 'Afang Soup & Swallow', desc: 'Wild afang leaves, periwinkle, assorted', price: 580000, options: [SWALLOW_OPTS] },
+        { name: 'Edikang Ikong & Swallow', desc: 'The king of vegetable soups', price: 600000, options: [SWALLOW_OPTS] },
+      ]},
+      { name: 'Drinks', items: [
+        { name: 'Palm Wine (50cl)', desc: 'Chilled, fresh tap', price: 200000 },
+        { name: 'Zobo', desc: 'With ginger burn', price: 80000 },
+      ]},
+    ],
+    reviews: [ ['Ekaette B.', 5, 'As a Calabar girl, I certify this afang. It is correct.'], ['Musa L.', 5, 'Catfish pepper soup cleared my sinuses and my worries.'], ['Joy E.', 4, 'Perfect rainy-day order. Arrived steaming hot.'] ],
+  },
+  {
+    org_name: 'Small Chops Lab', type: 'caterer', cuisine: 'Small Chops', price_range: 1, rating: 4.6, ratings: 780,
+    image: IMG('1551024506-0bccd828d307', 1200), promo: '10% off first order', fee: 50000, eta_min: 25, eta_max: 40,
+    modes: { pickup: true, delivery: true }, city: 'Abuja', lat: 9.1108, lng: 7.4165, address: '1st Avenue, Gwarinpa',
+    sections: [
+      { name: 'Small Chops Boxes', items: [
+        { name: 'Classic Box', desc: 'Puff puff, samosa, spring rolls, peppered chicken & gizzard', price: 500000, photo: IMG('1551024506-0bccd828d307'), popular: true },
+        { name: 'Party Box (feeds 4)', desc: 'Everything in the classic, times four + stick meat', price: 1200000, popular: true },
+        { name: 'Mini Box', desc: 'Solo-sized sampler', price: 300000 },
+      ]},
+      { name: 'À la carte', items: [
+        { name: 'Puff Puff (10pc)', desc: 'Golden, fluffy, sugar-dusted option', price: 150000 },
+        { name: 'Samosa (6pc)', desc: 'Crispy beef-filled', price: 200000 },
+        { name: 'Spring Rolls (6pc)', desc: 'Veg-packed, extra crunchy', price: 220000 },
+        { name: 'Peppered Gizzard Cup', desc: 'Party favourite', price: 300000 },
+      ]},
+      { name: 'Drinks', items: [
+        { name: 'Chapman Jug (1L)', desc: 'For the table', price: 400000 },
+      ]},
+    ],
+    reviews: [ ['Ngozi I.', 5, 'Ordered the party box for a house-warming — finished in 20 minutes.'], ['Dayo T.', 4, 'Puff puff still soft on arrival. That is the real test and they passed.'], ['Maryam S.', 5, 'My go-to for office parties in Gwarinpa.'] ],
+  },
+  {
+    org_name: 'Eko Pizza Works', type: 'restaurant', cuisine: 'Pizza', price_range: 2, rating: 4.4, ratings: 1600,
+    image: IMG('1513104890138-7c749659a591', 1200), promo: 'Free delivery over ₦12,000', fee: 80000, eta_min: 30, eta_max: 45,
+    modes: { pickup: true, delivery: true, dinein: true }, city: 'Lagos', lat: 6.4433, lng: 3.4907, address: 'Block 21, Lekki Phase 1',
+    sections: [
+      { name: 'Pizzas', items: [
+        { name: 'Suya Pizza', desc: 'Beef suya, yaji drizzle, caramelized onion — Lagos original', price: 1050000, photo: IMG('1513104890138-7c749659a591'), popular: true, options: [
+          { name: 'Size', min: 1, max: 1, required: true, choices: [['12" Regular', 0], ['16" Large', 300000]] },
+        ]},
+        { name: 'Pepperoni', desc: 'Cup-and-char pepperoni, mozzarella', price: 950000, popular: true, options: [
+          { name: 'Size', min: 1, max: 1, required: true, choices: [['12" Regular', 0], ['16" Large', 300000]] },
+        ]},
+        { name: 'Margherita', desc: 'Tomato, fresh mozzarella, basil', price: 850000 },
+        { name: 'BBQ Chicken', desc: 'Smoked chicken, red onion, BBQ swirl', price: 1000000 },
+      ]},
+      { name: 'Sides', items: [
+        { name: 'Chicken Wings (6pc)', desc: 'Peppered or BBQ', price: 450000, photo: IMG('1608039755401-742074f0548d') },
+        { name: 'Garlic Bread', desc: 'Butter-brushed, herbed', price: 250000 },
+      ]},
+      { name: 'Dessert', items: [
+        { name: 'Chocolate Lava Cake', desc: 'Molten center, vanilla scoop', price: 350000, photo: IMG('1578985545062-69928b1d9587') },
+      ]},
+    ],
+    reviews: [ ['Gbenga R.', 5, 'Suya pizza sounds like blasphemy until you taste it. Genius.'], ['Amara C.', 4, 'Solid pizza, arrived hot despite Lekki traffic.'], ['Femi J.', 4, 'Wings are properly peppered. Respect.'] ],
+  },
+  {
+    org_name: 'Burger Republic', type: 'restaurant', cuisine: 'Burgers', price_range: 2, rating: 4.5, ratings: 1900,
+    image: IMG('1568901346375-23c9450c58cd', 1200), promo: '₦0 delivery fee', fee: 0, eta_min: 20, eta_max: 35,
+    modes: { pickup: true, delivery: true, dinein: true }, city: 'Abuja', lat: 9.0765, lng: 7.4256, address: 'Jabi Lake Mall Food Court',
+    sections: [
+      { name: 'Burgers', items: [
+        { name: 'Classic Smash', desc: 'Double smashed patties, American cheese, house sauce', price: 550000, photo: IMG('1568901346375-23c9450c58cd'), popular: true, options: [
+          { name: 'Toppings', min: 0, max: 4, required: false, choices: [['Beef Bacon', 100000], ['Fried Egg', 50000], ['Extra Cheese', 50000], ['Caramelized Onions', 0]] },
+        ]},
+        { name: 'Double Trouble', desc: 'Four patties, double cheese, pickles', price: 750000, photo: IMG('1550317138-10000687a72b'), popular: true },
+        { name: 'Spicy Naija Burger', desc: 'Scotch-bonnet mayo, peppered beef patty', price: 650000, options: [HEAT_OPTS] },
+      ]},
+      { name: 'Fries & Shakes', items: [
+        { name: 'Classic Fries', desc: 'Crispy, sea salt', price: 200000 },
+        { name: 'Loaded Suya Fries', desc: 'Fries, suya beef, yaji mayo, onions', price: 450000, photo: IMG('1573080496219-bb080dd4f877'), popular: true },
+        { name: 'Oreo Shake', desc: 'Hand-spun, real cookies', price: 350000, photo: IMG('1563805042-7684c019e1cb') },
+      ]},
+    ],
+    reviews: [ ['Jide W.', 4, 'Smash burgers done right. Suya fries are elite.'], ['Fatima G.', 5, 'Free delivery to Wuse from Jabi — and it arrived in 25 minutes.'], ['Osas E.', 4, 'Naija burger has proper pepper. Not for the weak.'] ],
+  },
+  {
+    org_name: 'Maitama Pâtisserie', type: 'baker', cuisine: 'Bakery', price_range: 2, rating: 4.9, ratings: 380,
+    image: IMG('1555507036-ab1f4038808a', 1200), promo: '20% off pastries', fee: 60000, eta_min: 25, eta_max: 40,
+    modes: { pickup: true, delivery: true }, city: 'Abuja', lat: 9.0873, lng: 7.4956, address: '3 Gana Street, Maitama',
+    sections: [
+      { name: 'Pastries', items: [
+        { name: 'Butter Croissant', desc: '72-hour laminated, French butter', price: 250000, photo: IMG('1555507036-ab1f4038808a'), popular: true },
+        { name: 'Meat Pie', desc: 'Flaky crust, spiced minced beef & potato', price: 150000, popular: true },
+        { name: 'Sausage Roll', desc: 'All-butter pastry, seasoned sausage', price: 120000 },
+        { name: 'Chin Chin Box', desc: 'Crunchy-sweet, house recipe', price: 200000 },
+      ]},
+      { name: 'Cakes', items: [
+        { name: 'Red Velvet Slice', desc: 'Cream cheese frosting', price: 350000 },
+        { name: 'Chocolate Fudge Slice', desc: '70% dark chocolate', price: 320000, photo: IMG('1578985545062-69928b1d9587') },
       ]},
       { name: 'Coffee', items: [
-        { name: 'Latte', desc: 'Double shot, house blend', price: 500, photo: IMG('1509042239860-f550ce710b93'), options: [ { name: 'Milk', min: 1, max: 1, required: true, choices: [['Whole', 0], ['Oat', 75], ['Almond', 75]] } ] },
-        { name: 'Cappuccino', desc: 'Classic dry foam', price: 475 },
+        { name: 'Latte', desc: 'Double shot, house blend', price: 280000, photo: IMG('1509042239860-f550ce710b93'), options: [ { name: 'Milk', min: 1, max: 1, required: true, choices: [['Whole', 0], ['Oat', 40000], ['Almond', 40000]] } ] },
+        { name: 'Cappuccino', desc: 'Classic dry foam', price: 250000 },
       ]},
     ],
-    reviews: [ ['Sophie B.', 5, 'Croissants as good as Paris. Not exaggerating.'], ['Liam N.', 5, 'Basque cheesecake is a religious experience.'], ['Grace T.', 4, 'Arrives beautifully boxed.'] ],
+    reviews: [ ['Sophie B.', 5, 'Croissants as good as Paris, in Maitama. Not exaggerating.'], ['Ahmed D.', 5, 'The meat pie is what every other meat pie wishes it was.'], ['Grace T.', 4, 'Beautiful packaging, cakes arrive intact.'] ],
   },
   {
-    org_name: 'Bombay Spice House', type: 'restaurant', cuisine: 'Indian', price_range: 2, rating: 4.6, ratings: 890,
-    image: IMG('1585937421612-70a008356fbe', 1200), promo: null, fee: 299, eta_min: 30, eta_max: 45,
-    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.765, lng: -122.42, address: '3111 24th St',
+    org_name: 'Green Bowl', type: 'restaurant', cuisine: 'Healthy', price_range: 2, rating: 4.7, ratings: 560,
+    image: IMG('1512621776951-a57141f2eefd', 1200), promo: 'Buy 1, Get 1 Free', fee: 60000, eta_min: 25, eta_max: 35,
+    modes: { pickup: true, delivery: true }, city: 'Abuja', lat: 9.0812, lng: 7.49, address: 'Adetokunbo Ademola Cres, Wuse 2',
     sections: [
-      { name: 'Curries', items: [
-        { name: 'Butter Chicken', desc: 'Tandoor chicken, tomato-fenugreek cream', price: 1590, photo: IMG('1585937421612-70a008356fbe'), popular: true, options: [
-          { name: 'Spice Level', min: 1, max: 1, required: true, choices: [['Mild', 0], ['Medium', 0], ['Hot', 0], ['Indian Hot', 0]] },
-        ]},
-        { name: 'Chana Masala', desc: 'Chickpeas, ginger, garam masala (vegan)', price: 1290, options: [
-          { name: 'Spice Level', min: 1, max: 1, required: true, choices: [['Mild', 0], ['Medium', 0], ['Hot', 0]] },
-        ]},
-        { name: 'Lamb Rogan Josh', desc: 'Kashmiri chili, slow-braised', price: 1750 },
+      { name: 'Bowls', items: [
+        { name: 'Grilled Chicken Bowl', desc: 'Char-grilled chicken, quinoa, avocado, greens', price: 650000, photo: IMG('1512621776951-a57141f2eefd'), popular: true, options: [PROTEIN_NG] },
+        { name: 'Naija Buddha Bowl', desc: 'Sweet potato, moi moi cubes, kale, ata rodo dressing', price: 550000, photo: IMG('1546069901-ba9599a7e63c') },
+        { name: 'Tuna Salad Bowl', desc: 'Seared tuna, cucumber, sesame', price: 600000 },
       ]},
-      { name: 'Tandoor & Breads', items: [
-        { name: 'Garlic Naan', desc: 'Charred, buttered', price: 450, popular: true },
-        { name: 'Chicken Biryani', desc: 'Saffron basmati, crispy onions, raita', price: 1490, photo: IMG('1563379091339-03b21ab4a4f8') },
-        { name: 'Tandoori Half Chicken', desc: 'Yogurt-marinated, mint chutney', price: 1390 },
+      { name: 'Smoothies & Juice', items: [
+        { name: 'Mango Sunrise', desc: 'Mango, pineapple, ginger', price: 280000, photo: IMG('1505252585461-04db1eb84625') },
+        { name: 'Green Detox', desc: 'Cucumber, celery, apple, tigernut milk', price: 300000, popular: true },
+      ]},
+      { name: 'Wraps', items: [
+        { name: 'Chicken Avocado Wrap', desc: 'Whole-wheat wrap, grilled chicken, avo', price: 450000 },
       ]},
     ],
-    reviews: [ ['Anish P.', 5, 'Butter chicken is silky perfection. Get extra naan.'], ['Meera D.', 4, 'Biryani portion feeds two.'], ['Jake L.', 4, '"Indian Hot" is not a joke. Delicious.'] ],
+    reviews: [ ['Elena V.', 5, 'Finally, healthy food in Abuja that actually has flavour.'], ['Kelechi M.', 4, 'Buddha bowl with moi moi cubes is inspired.'], ['Hadiza B.', 5, 'My lunch subscription spot. Never misses.'] ],
   },
   {
-    org_name: 'The Breakfast Club', type: 'restaurant', cuisine: 'Breakfast', price_range: 2, rating: 4.5, ratings: 2410,
-    image: IMG('1567620905732-2d1ec7ab7445', 1200), promo: '15% off orders $25+', fee: 199, eta_min: 15, eta_max: 25,
-    modes: { pickup: true, delivery: true, dinein: true }, lat: 37.798, lng: -122.435, address: '2301 Chestnut St',
+    org_name: 'Sushi Ikoyi', type: 'restaurant', cuisine: 'Sushi', price_range: 3, rating: 4.8, ratings: 420,
+    image: IMG('1579871494447-9811cf80d66c', 1200), promo: null, fee: 150000, eta_min: 40, eta_max: 60,
+    modes: { pickup: true, delivery: true, dinein: true }, city: 'Lagos', lat: 6.4541, lng: 3.4316, address: '7 Awolowo Road, Ikoyi',
     sections: [
-      { name: 'All-Day Breakfast', items: [
-        { name: 'Buttermilk Pancakes', desc: 'Stack of three, whipped butter, maple', price: 1090, photo: IMG('1567620905732-2d1ec7ab7445'), popular: true },
-        { name: 'Avocado Toast', desc: 'Sourdough, heirloom tomato, chili flake', price: 1150, photo: IMG('1541519227354-08fa5d50c44d'), popular: true },
-        { name: 'Breakfast Burrito', desc: 'Scrambled eggs, bacon, crispy potato, salsa', price: 1050 },
-        { name: 'Brioche French Toast', desc: 'Berry compote, mascarpone', price: 1190, photo: IMG('1484723091739-30a097e8f929') },
+      { name: 'Signature Rolls', items: [
+        { name: 'Lagos Dragon Roll', desc: 'Prawn tempura, avocado, unagi glaze', price: 1200000, photo: IMG('1579871494447-9811cf80d66c'), popular: true },
+        { name: 'Spicy Tuna Roll', desc: 'Ahi tuna, scotch-bonnet mayo twist', price: 1050000, popular: true },
+        { name: 'California Roll', desc: 'Crab, avocado, cucumber', price: 950000, photo: IMG('1553621042-f6e147245754') },
       ]},
-      { name: 'Coffee & Juice', items: [
-        { name: 'Cold Brew', desc: '16 oz, single origin', price: 500, photo: IMG('1509042239860-f550ce710b93') },
-        { name: 'Fresh Orange Juice', desc: 'Squeezed to order', price: 450 },
+      { name: 'Nigiri', items: [
+        { name: 'Salmon Nigiri (2pc)', desc: 'Air-flown Scottish salmon', price: 700000, photo: IMG('1534482421-64566f976cfa') },
+        { name: 'Prawn Nigiri (2pc)', desc: 'Butterflied tiger prawn', price: 650000 },
+      ]},
+      { name: 'Starters', items: [
+        { name: 'Edamame', desc: 'Sea salt or spicy garlic', price: 400000 },
+        { name: 'Pork Gyoza (5pc)', desc: 'Pan-fried, ponzu', price: 550000, photo: IMG('1496116218417-1a781b1c416c') },
       ]},
     ],
-    reviews: [ ['Nina S.', 5, 'French toast is heavenly. Weekend must.'], ['Omar E.', 4, 'Burrito travels well, still crispy.'], ['Beth C.', 4, 'Best pancakes in the Marina.'] ],
-  },
-  {
-    org_name: 'Mediterraneo', type: 'caterer', cuisine: 'Mediterranean', price_range: 2, rating: 4.7, ratings: 640,
-    image: IMG('1529006557810-274b9b2fc783', 1200), promo: 'Free baklava over $35', fee: 249, eta_min: 25, eta_max: 40,
-    modes: { pickup: true, delivery: true }, lat: 37.786, lng: -122.44, address: '1793 Union St',
-    sections: [
-      { name: 'Plates', items: [
-        { name: 'Chicken Shawarma Plate', desc: 'Spit-roasted, garlic toum, saffron rice', price: 1350, photo: IMG('1529006557810-274b9b2fc783'), popular: true },
-        { name: 'Falafel Plate', desc: 'Herb falafel, tahini, Israeli salad (vegan)', price: 1190, popular: true },
-        { name: 'Lamb Gyro Plate', desc: 'Shaved lamb, tzatziki, warm pita', price: 1450 },
-      ]},
-      { name: 'Mezze', items: [
-        { name: 'Classic Hummus', desc: 'Silky chickpea, olive oil, warm pita', price: 650, photo: IMG('1593560708920-61dd98c46a4e') },
-        { name: 'Baba Ganoush', desc: 'Fire-roasted eggplant', price: 700 },
-        { name: 'Tabbouleh', desc: 'Parsley, bulgur, lemon', price: 600 },
-      ]},
-      { name: 'Sweets', items: [
-        { name: 'Pistachio Baklava (3pc)', desc: 'Honey syrup, 40 layers', price: 550 },
-      ]},
-    ],
-    reviews: [ ['Layla H.', 5, 'Toum so good I ordered a side of just toum.'], ['George K.', 5, 'Falafel stays crunchy. Rare for delivery.'], ['Dana M.', 4, 'Generous mezze portions.'] ],
+    reviews: [ ['Kenji M.', 5, 'Fish quality that rivals anywhere in West Africa.'], ['Lauren S.', 5, 'The scotch-bonnet spicy tuna is a brilliant local touch.'], ['Tom H.', 4, 'Premium prices but Ikoyi-worthy quality.'] ],
   },
 ]
 
 async function seedRichVendors(db: D1Database) {
-  const row = await db.prepare('SELECT COUNT(1) AS n FROM vendors').first<{ n: number }>()
-  if (Number(row?.n || 0) >= RICH_VENDORS.length) return
+  // Nigerian catalog marker: if any Lagos/Abuja location exists, the current seed is already in place
+  const row = await db.prepare("SELECT COUNT(1) AS n FROM locations WHERE city IN ('Lagos','Abuja')").first<{ n: number }>()
+  if (Number(row?.n || 0) > 0) return
   // Wipe catalog + dependent demo data for a clean, consistent dataset
   for (const t of ['order_items', 'orders', 'group_order_items', 'group_orders', 'reviews', 'loyalty', 'reservations', 'options', 'option_groups', 'menu_items', 'menu_sections', 'menus', 'locations', 'vendors']) {
     try { await db.prepare(`DELETE FROM ${t}`).run() } catch {}
@@ -636,8 +624,8 @@ async function seedRichVendors(db: D1Database) {
     ).bind(v.org_name, v.type, v.tier || 'basic', v.rating, v.ratings, JSON.stringify(v.modes), v.image, v.cuisine, v.price_range, v.fee, v.eta_min, v.eta_max, v.promo || null).run()
     const vendorId = Number(vr.meta.last_row_id)
     await db.prepare(
-      `INSERT INTO locations (vendor_id, address, city, region, postal_code, country, lat, lng, hours_json, is_live_tracking) VALUES (?, ?, 'San Francisco', 'CA', '94100', 'US', ?, ?, ?, ?)`
-    ).bind(vendorId, v.address, v.lat, v.lng, HOURS, v.live ? 1 : 0).run()
+      `INSERT INTO locations (vendor_id, address, city, region, postal_code, country, lat, lng, hours_json, is_live_tracking) VALUES (?, ?, ?, ?, '900001', 'NG', ?, ?, ?, ?)`
+    ).bind(vendorId, v.address, v.city, v.city === 'Abuja' ? 'FCT' : 'Lagos', v.lat, v.lng, HOURS, v.live ? 1 : 0).run()
     const mr = await db.prepare(`INSERT INTO menus (vendor_id, title, is_active) VALUES (?, 'Full Menu', 1)`).bind(vendorId).run()
     const menuId = Number(mr.meta.last_row_id)
     let sort = 0
@@ -961,7 +949,7 @@ app.post('/api/vendor/register', async (c) => {
   const type = ['restaurant', 'truck', 'home_chef', 'street', 'baker', 'caterer'].includes(body.type || '') ? body.type : 'restaurant'
   const cuisine = (body.cuisine || 'Healthy').slice(0, 40)
   const modes = body.service_modes && typeof body.service_modes === 'object' ? body.service_modes : { pickup: true, delivery: true }
-  const fee = Math.max(0, Math.min(999, Number(body.delivery_fee_cents ?? 199)))
+  const fee = Math.max(0, Math.min(500000, Number(body.delivery_fee_cents ?? 50000)))
   const priceRange = Math.max(1, Math.min(3, Number(body.price_range || 2)))
   const image = (body.image_url || '').trim() || CUISINE_DEFAULT_IMG[cuisine] || GENERIC_STORE_IMG
 
@@ -982,8 +970,16 @@ app.post('/api/vendor/register', async (c) => {
   const vendorId = Number(vr.meta.last_row_id)
   const HOURS = JSON.stringify({ mon: ['00:00-23:59'], tue: ['00:00-23:59'], wed: ['00:00-23:59'], thu: ['00:00-23:59'], fri: ['00:00-23:59'], sat: ['00:00-23:59'], sun: ['00:00-23:59'] })
   await db.prepare(
-    `INSERT INTO locations (vendor_id, address, city, region, postal_code, country, lat, lng, hours_json, is_live_tracking) VALUES (?, ?, ?, 'CA', '94100', 'US', 37.7749, -122.4194, ?, 0)`
-  ).bind(vendorId, (body.address || '').trim() || null, (body.city || 'San Francisco').trim(), HOURS).run()
+    `INSERT INTO locations (vendor_id, address, city, region, postal_code, country, lat, lng, hours_json, is_live_tracking) VALUES (?, ?, ?, ?, '900001', 'NG', ?, ?, ?, 0)`
+  ).bind(
+    vendorId,
+    (body.address || '').trim() || null,
+    body.city === 'Abuja' ? 'Abuja' : 'Lagos',
+    body.city === 'Abuja' ? 'FCT' : 'Lagos',
+    body.city === 'Abuja' ? 9.0765 : 6.455,
+    body.city === 'Abuja' ? 7.3986 : 3.3841,
+    HOURS
+  ).run()
   const mr = await db.prepare(`INSERT INTO menus (vendor_id, title, is_active) VALUES (?, 'Full Menu', 1)`).bind(vendorId).run()
   await db.prepare(`INSERT INTO menu_sections (menu_id, name, sort_order) VALUES (?, 'Featured', 1)`).bind(Number(mr.meta.last_row_id)).run()
 
@@ -1029,7 +1025,7 @@ app.post('/api/vendor/profile', requireAuth, requireVendor, async (c) => {
   }
   if (body.type && ['restaurant', 'truck', 'home_chef', 'street', 'baker', 'caterer'].includes(body.type)) { sets.push('type = ?'); bind.push(body.type) }
   if (body.price_range != null) { sets.push('price_range = ?'); bind.push(Math.max(1, Math.min(3, Number(body.price_range) || 2))) }
-  if (body.delivery_fee_cents != null) { sets.push('delivery_fee_cents = ?'); bind.push(Math.max(0, Math.min(9999, Number(body.delivery_fee_cents) || 0))) }
+  if (body.delivery_fee_cents != null) { sets.push('delivery_fee_cents = ?'); bind.push(Math.max(0, Math.min(500000, Number(body.delivery_fee_cents) || 0))) }
   if (body.eta_min != null) { sets.push('eta_min = ?'); bind.push(Math.max(5, Math.min(120, Number(body.eta_min) || 20))) }
   if (body.eta_max != null) { sets.push('eta_max = ?'); bind.push(Math.max(10, Math.min(180, Number(body.eta_max) || 40))) }
   if (body.service_modes && typeof body.service_modes === 'object') { sets.push('service_modes_json = ?'); bind.push(JSON.stringify(body.service_modes)) }
@@ -1354,6 +1350,7 @@ app.get('/api/vendors', async (c) => {
       rating_count: v.rating_count,
       open_now: v.open_now,
       distance_km: v.distance_km,
+      city: (locsByVendor[v.id] || [])[0]?.city || null,
       image_url: v.image_url,
       cuisine: v.cuisine,
       price_range: v.price_range,
@@ -1558,22 +1555,19 @@ app.post('/api/group/:code/submit', async (c) => {
   const gItems = await queryAll<any>(db, 'SELECT * FROM group_order_items WHERE group_id = ? ORDER BY id', [group.id])
   if (gItems.length === 0) return c.json({ error: 'empty_group' }, 400)
 
-  // Totals based on stored line totals
+  // Totals based on stored line totals (VAT 7.5% + 5% service fee + vendor delivery fee)
   const subtotal = gItems.reduce((s,it)=> s + (it.line_total||0), 0)
-  const taxes = Math.round(subtotal * 0.08)
+  const taxes = Math.round(subtotal * 0.075)
   const type = body.type === 'delivery' ? 'delivery' : 'pickup'
-  let fees = type === 'delivery' ? 399 : 99
-  let etaStr: string | null = null
-  if (type === 'delivery' && typeof body.distance_km === 'number' && !Number.isNaN(body.distance_km) && body.distance_km > 0) {
-    const km = Math.max(0, Number(body.distance_km))
-    const quoteFee = Math.round(199 + km * 80)
-    fees += quoteFee
-    const eta_minutes = 30 + Math.round(km * 4)
-    etaStr = `${eta_minutes}m`
-  }
+  const gVendor = await queryOne<any>(db, 'SELECT * FROM vendors WHERE id = ?', [vendorId])
+  const gDeliveryFee = type === 'delivery' ? Number(gVendor?.delivery_fee_cents ?? 50000) : 0
+  let fees = gDeliveryFee + Math.round(subtotal * 0.05)
+  let etaStr: string | null = type === 'delivery'
+    ? `${gVendor?.eta_min || 25}-${gVendor?.eta_max || 45}m`
+    : `${Math.max(10, Number(gVendor?.eta_min || 20) - 5)}m`
   let discount = 0
   if (body.promo_code && body.promo_code.toUpperCase() === 'SAVE10') {
-    discount = Math.min(Math.round(subtotal * 0.1), 500)
+    discount = Math.min(Math.round(subtotal * 0.1), 100000)
   }
   // Loyalty redemption
   let loyaltyRedeem = 0
@@ -1624,7 +1618,7 @@ app.post('/api/group/:code/submit', async (c) => {
 app.post('/api/delivery/quote', async (c) => {
   const body = await c.req.json<{ vendor_id: number; address?: string; distance_km?: number }>().catch(() => ({ vendor_id: 0 }))
   const km = Math.max(0, Number(body.distance_km ?? 5))
-  const fee = Math.round(199 + km * 80) // base + per-km
+  const fee = Math.round(30000 + km * 10000) // ₦300 base + ₦100/km
   const eta_minutes = 30 + Math.round(km * 4)
   return c.json({ fee, eta_minutes })
 })
@@ -1662,18 +1656,18 @@ app.post('/api/orders', async (c) => {
     subtotal += line
     pricedItems.push({ item_id: row.id, qty, unit_price: unit, line_total: line, selected_options: opts, name: row.name })
   }
-  const taxes = Math.round(subtotal * 0.08)
+  const taxes = Math.round(subtotal * 0.075) // VAT 7.5%
   // Fees: vendor's advertised delivery fee (fallback to distance formula), 5% service fee, optional priority
   const serviceFee = Math.round(subtotal * 0.05)
-  const priorityFee = body.priority && type === 'delivery' ? 149 : 0
+  const priorityFee = body.priority && type === 'delivery' ? 50000 : 0 // ₦500
   let deliveryFee = 0
   if (type === 'delivery') {
     if (vendorRow.delivery_fee_cents != null) {
       deliveryFee = Number(vendorRow.delivery_fee_cents)
     } else if (typeof body.distance_km === 'number' && !Number.isNaN(body.distance_km) && body.distance_km > 0) {
-      deliveryFee = Math.round(199 + Math.max(0, Number(body.distance_km)) * 80)
+      deliveryFee = Math.round(30000 + Math.max(0, Number(body.distance_km)) * 10000) // ₦300 + ₦100/km
     } else {
-      deliveryFee = 399
+      deliveryFee = 50000
     }
   }
   let fees = deliveryFee + serviceFee + priorityFee
@@ -1685,10 +1679,10 @@ app.post('/api/orders', async (c) => {
   } else {
     etaStr = `${Math.max(10, Number(vendorRow.eta_min || 15) - 5)}m`
   }
-  // promo: simple demo - SAVE10 gives 10% off up to $5
+  // promo: simple demo - SAVE10 gives 10% off up to ₦1,000
   let discount = 0
   if (body.promo_code && body.promo_code.toUpperCase() === 'SAVE10') {
-    discount = Math.min(Math.round(subtotal * 0.1), 500)
+    discount = Math.min(Math.round(subtotal * 0.1), 100000)
   }
   // loyalty redemption: 1 point = 1 cent. Cap by available points and subtotal after promo
   let loyaltyRedeem = 0

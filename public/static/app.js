@@ -10,7 +10,11 @@
   // ---------- utils ----------
   const $ = (sel, el) => (el || document).querySelector(sel)
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel))
-  const money = (c) => `$${(Number(c || 0) / 100).toFixed(2)}`
+  const money = (k) => {
+    const n = Number(k || 0) / 100
+    const opts = Number.isInteger(n) ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+    return '₦' + n.toLocaleString('en-NG', opts)
+  }
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]))
   const fmtCount = (n) => (n >= 1000 ? `${Math.floor(n / 1000)},000+` : `${n}+`)
   const store = {
@@ -26,17 +30,18 @@
   }
 
   const CUISINE_EMOJI = {
-    Mexican: '🌮', Burgers: '🍔', Pizza: '🍕', Sushi: '🍣', Healthy: '🥗', 'West African': '🍲',
-    Korean: '🍢', Chinese: '🥟', Bakery: '🥐', Indian: '🍛', Breakfast: '🥞', Mediterranean: '🧆',
+    Jollof: '🍚', Nigerian: '🍲', 'Suya & Grills': '🍢', Swallow: '🥘', 'Pepper Soup': '🍜',
+    Shawarma: '🌯', 'Small Chops': '🥟', Pizza: '🍕', Burgers: '🍔', Bakery: '🥐', Healthy: '🥗', Sushi: '🍣',
   }
   const CATEGORIES = [
-    ['Offers', '🏷️'], ['Pizza', '🍕'], ['Burgers', '🍔'], ['Mexican', '🌮'], ['Sushi', '🍣'],
-    ['Healthy', '🥗'], ['Chinese', '🥟'], ['Korean', '🍢'], ['Indian', '🍛'], ['Breakfast', '🥞'],
-    ['Bakery', '🥐'], ['Mediterranean', '🧆'], ['West African', '🍲'],
+    ['Offers', '🏷️'], ['Jollof', '🍚'], ['Nigerian', '🍲'], ['Suya & Grills', '🍢'], ['Swallow', '🥘'],
+    ['Pepper Soup', '🍜'], ['Shawarma', '🌯'], ['Small Chops', '🥟'], ['Pizza', '🍕'], ['Burgers', '🍔'],
+    ['Bakery', '🥐'], ['Healthy', '🥗'], ['Sushi', '🍣'],
   ]
   const emojiFor = (v) => CUISINE_EMOJI[v.cuisine] || '🍽️'
-  const priceRange = (n) => '$'.repeat(Math.max(1, Math.min(3, Number(n || 1))))
-  const feeLabel = (v) => (Number(v.delivery_fee_cents || 0) === 0 ? '$0 Delivery Fee' : `${money(v.delivery_fee_cents)} Delivery Fee`)
+  const priceRange = (n) => '₦'.repeat(Math.max(1, Math.min(3, Number(n || 1))))
+  const feeLabel = (v) => (Number(v.delivery_fee_cents || 0) === 0 ? '₦0 Delivery Fee' : `${money(v.delivery_fee_cents)} Delivery Fee`)
+  const CITIES = ['Lagos', 'Abuja']
 
   // ---------- api ----------
   const api = {
@@ -84,7 +89,8 @@
     vendors: [],
     vendorsLoaded: false,
     mode: store.get('menu_mode', 'delivery'), // delivery | pickup
-    address: store.get('menu_address', '1226 University Dr'),
+    city: store.get('menu_city', 'Lagos'), // Lagos | Abuja
+    address: store.get('menu_address', '14 Admiralty Way, Lekki Phase 1'),
     filters: { q: '', cat: '', offers: false, freeDelivery: false, under30: false, topRated: false, favs: false, sort: 'rating' },
     cart: store.get('menu_cart_v2', { vendor_id: null, vendor_name: '', items: [] }),
     favs: new Set(store.get('menu_favs', [])),
@@ -125,10 +131,12 @@
             <button data-mode="delivery" class="${state.mode === 'delivery' ? 'active' : ''}">Delivery</button>
             <button data-mode="pickup" class="${state.mode === 'pickup' ? 'active' : ''}">Pickup</button>
           </div>
-          <button id="addr-btn" class="hidden lg:inline-flex items-center gap-2 text-sm font-bold hover:bg-gray-100 rounded-full px-3 py-2 max-w-[220px]">
+          <div class="seg hidden sm:inline-flex" id="city-seg">
+            ${CITIES.map((ct) => `<button data-city="${ct}" class="${state.city === ct ? 'active' : ''}">${ct}</button>`).join('')}
+          </div>
+          <button id="addr-btn" class="hidden xl:inline-flex items-center gap-2 text-sm font-bold hover:bg-gray-100 rounded-full px-3 py-2 max-w-[220px]">
             <i class="fa-solid fa-location-dot"></i>
             <span class="truncate">${esc(state.address)}</span>
-            <span class="text-gray-400 font-medium shrink-0">• Now</span>
             <i class="fa-solid fa-chevron-down text-xs text-gray-400"></i>
           </button>
           <div class="search-input">
@@ -154,6 +162,15 @@
       store.set('menu_mode', state.mode)
       $$('#mode-seg button').forEach((x) => x.classList.toggle('active', x === b))
       if (currentRoute().name === 'feed') renderFeed()
+    })
+    $('#city-seg')?.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-city]')
+      if (!b) return
+      state.city = b.dataset.city
+      store.set('menu_city', state.city)
+      $$('#city-seg button').forEach((x) => x.classList.toggle('active', x === b))
+      if (currentRoute().name === 'feed') renderFeed()
+      else location.hash = '#/'
     })
     $('#addr-btn')?.addEventListener('click', () => {
       const a = prompt('Delivery address', state.address)
@@ -266,7 +283,7 @@
     const f = state.filters
     $('#filter-row').innerHTML = `
       <button class="chip ${f.offers ? 'active' : ''}" data-f="offers"><i class="fa-solid fa-tag"></i> Offers</button>
-      <button class="chip ${f.freeDelivery ? 'active' : ''}" data-f="freeDelivery">$0 Delivery Fee</button>
+      <button class="chip ${f.freeDelivery ? 'active' : ''}" data-f="freeDelivery">₦0 Delivery Fee</button>
       <button class="chip ${f.under30 ? 'active' : ''}" data-f="under30">Under 30 min</button>
       <button class="chip ${f.topRated ? 'active' : ''}" data-f="topRated">Over 4.5 <i class="fa-solid fa-star star text-xs"></i></button>
       <button class="chip ${f.favs ? 'active' : ''}" data-f="favs"><i class="fa-solid fa-heart"></i> Favorites</button>
@@ -298,6 +315,7 @@
     if (f.under30) list = list.filter((v) => Number(v.eta_max || 99) <= 30)
     if (f.topRated) list = list.filter((v) => Number(v.rating_avg || 0) >= 4.5)
     if (f.favs) list = list.filter((v) => state.favs.has(v.id))
+    list = list.filter((v) => !v.city || v.city === state.city)
     if (state.mode === 'pickup') list = list.filter((v) => !v.service_modes || v.service_modes.pickup !== false)
     if (f.sort === 'eta') list.sort((a, b) => (a.eta_max || 99) - (b.eta_max || 99))
     else if (f.sort === 'fee') list.sort((a, b) => (a.delivery_fee_cents || 0) - (b.delivery_fee_cents || 0))
@@ -324,13 +342,13 @@
 
     body.innerHTML = `
       <h1 class="text-2xl md:text-[28px] font-extrabold tracking-tight mt-2">Crave it? Get it.</h1>
-      <p class="text-gray-500 text-[15px] mt-0.5">Restaurants, trucks, home chefs and bakeries near <span class="font-semibold text-gray-800">${esc(state.address)}</span></p>
+      <p class="text-gray-500 text-[15px] mt-0.5">Restaurants, trucks, home chefs and bakeries in <span class="font-semibold text-gray-800">${esc(state.city)}</span> — delivering to <span class="font-semibold text-gray-800">${esc(state.address)}</span></p>
 
       <div class="grid md:grid-cols-2 gap-4 mt-6">
         <div class="rounded-2xl p-6 md:p-7 flex items-center justify-between overflow-hidden relative" style="background:linear-gradient(120deg,#EB1700,#FF5A3C)">
           <div class="text-white relative z-10">
             <div class="text-xl md:text-2xl font-extrabold">20% off your first order</div>
-            <div class="text-white/85 text-sm mt-1">Use code <b>SAVE10</b> at checkout • up to $5</div>
+            <div class="text-white/85 text-sm mt-1">Use code <b>SAVE10</b> at checkout • up to ₦1,000</div>
             <button class="mt-4 bg-white text-gray-900 text-sm font-bold rounded-full px-5 py-2.5" data-promo-cta>Order now</button>
           </div>
           <div class="text-[90px] leading-none select-none relative z-10 hidden sm:block">🍕</div>
@@ -338,7 +356,7 @@
         <div class="rounded-2xl p-6 md:p-7 flex items-center justify-between overflow-hidden relative" style="background:#191919">
           <div class="text-white relative z-10">
             <div class="flex items-center gap-2"><span class="text-xl md:text-2xl font-extrabold">Menu<span style="color:#F5A623">+</span></span></div>
-            <div class="text-white/80 text-sm mt-1">$0 Delivery Fee on eligible stores near you</div>
+            <div class="text-white/80 text-sm mt-1">₦0 Delivery Fee on eligible stores in Lagos &amp; Abuja</div>
             <button class="mt-4 text-sm font-bold rounded-full px-5 py-2.5" style="background:#F5A623;color:#191919" data-plus-cta>Try free for 4 weeks</button>
           </div>
           <div class="text-[90px] leading-none select-none relative z-10 hidden sm:block">✨</div>
@@ -449,7 +467,7 @@
           </div>
           <div class="flex items-center divide-x" style="--tw-divide-opacity:1">
             <div class="px-5 text-center">
-              <div class="font-extrabold text-[15px] ${Number(v.delivery_fee_cents || 0) === 0 && state.mode === 'delivery' ? 'money-green' : ''}">${state.mode === 'pickup' ? '$0.00' : money(v.delivery_fee_cents || 0)}</div>
+              <div class="font-extrabold text-[15px] ${Number(v.delivery_fee_cents || 0) === 0 && state.mode === 'delivery' ? 'money-green' : ''}">${state.mode === 'pickup' ? '₦0' : money(v.delivery_fee_cents || 0)}</div>
               <div class="text-xs text-gray-500">${state.mode === 'pickup' ? 'no fees' : 'delivery fee'}</div>
             </div>
             <div class="px-5 text-center">
@@ -935,11 +953,11 @@
       const subtotal = cartSubtotal()
       const isDelivery = state.mode === 'delivery'
       const deliveryFee = isDelivery ? Number(v.delivery_fee_cents || 0) : 0
-      const priority = isDelivery && co.speed === 'priority' ? 149 : 0
+      const priority = isDelivery && co.speed === 'priority' ? 50000 : 0
       const service = Math.round(subtotal * 0.05)
-      const taxes = Math.round(subtotal * 0.08)
+      const taxes = Math.round(subtotal * 0.075)
       let discount = 0
-      if ((co.promo || '').toUpperCase() === 'SAVE10') discount = Math.min(Math.round(subtotal * 0.1), 500)
+      if ((co.promo || '').toUpperCase() === 'SAVE10') discount = Math.min(Math.round(subtotal * 0.1), 100000)
       let pointsUsed = 0
       if (co.usePoints && co.points > 0) pointsUsed = Math.min(co.points, subtotal - discount)
       const tip = co.tipCustom != null ? co.tipCustom : Math.round(subtotal * co.tipPct)
@@ -991,7 +1009,7 @@
                   <div class="select-card ${co.speed === 'priority' ? 'selected' : ''}" data-speed="priority">
                     <span class="text-lg">⚡</span>
                     <div class="flex-1"><div class="font-bold text-[15px]">Priority</div><div class="text-xs text-gray-500">${Math.max(5, (v.eta_min || 20) - 7)}–${Math.max(10, (v.eta_max || 35) - 7)} min • Direct to you</div></div>
-                    <span class="text-sm font-bold">+$1.49</span>
+                    <span class="text-sm font-bold">+₦500</span>
                   </div>
                   <div class="select-card ${co.speed === 'standard' ? 'selected' : ''}" data-speed="standard">
                     <span class="text-lg">🛵</span>
@@ -1009,7 +1027,7 @@
                 <div class="flex items-center justify-between py-3 mt-2">
                   <div class="flex items-center gap-3.5">
                     <span class="text-xl">💳</span>
-                    <div><div class="font-bold text-[15px]">Visa •••• 4242</div><div class="text-xs text-gray-500">Demo payment method</div></div>
+                    <div><div class="font-bold text-[15px]">Paystack • Visa •••• 4242</div><div class="text-xs text-gray-500">Demo payment method</div></div>
                   </div>
                   <button class="btn btn-ghost btn-sm">Edit</button>
                 </div>
@@ -1071,7 +1089,7 @@
                   <div class="flex justify-between"><span class="text-gray-600">Subtotal</span><span>${money(t.subtotal)}</span></div>
                   ${t.isDelivery ? `<div class="flex justify-between"><span class="text-gray-600">Delivery fee</span><span class="${t.deliveryFee === 0 ? 'money-green' : ''}">${t.deliveryFee === 0 ? 'Free' : money(t.deliveryFee)}</span></div>` : ''}
                   ${t.priority ? `<div class="flex justify-between"><span class="text-gray-600">Priority delivery</span><span>${money(t.priority)}</span></div>` : ''}
-                  <div class="flex justify-between"><span class="text-gray-600">Taxes &amp; service fee</span><span>${money(t.taxes + t.service)}</span></div>
+                  <div class="flex justify-between"><span class="text-gray-600">VAT (7.5%) &amp; service fee</span><span>${money(t.taxes + t.service)}</span></div>
                   ${t.discount ? `<div class="flex justify-between money-green"><span>Promo discount</span><span>-${money(t.discount)}</span></div>` : ''}
                   ${t.pointsUsed ? `<div class="flex justify-between money-green"><span>Loyalty points</span><span>-${money(t.pointsUsed)}</span></div>` : ''}
                   ${t.tip ? `<div class="flex justify-between"><span class="text-gray-600">Tip</span><span>${money(t.tip)}</span></div>` : ''}
@@ -1107,7 +1125,7 @@
         const b = e.target.closest('[data-tip]')
         if (!b) return
         if (b.dataset.tip === 'other') {
-          const val = prompt('Custom tip amount ($)', '3.00')
+          const val = prompt('Custom tip amount (₦)', '500')
           const n = Number(val)
           if (!Number.isNaN(n) && n >= 0) co.tipCustom = Math.round(n * 100)
         } else { co.tipCustom = null; co.tipPct = Number(b.dataset.tip) }
@@ -1443,26 +1461,33 @@
               </div>
               <div>
                 <label class="font-bold text-sm">Phone</label>
-                <input id="vj-phone" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="+1 (555) 000-0000" />
+                <input id="vj-phone" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="+234 801 234 5678" />
               </div>
-              <div class="md:col-span-2">
-                <label class="font-bold text-sm">Street address</label>
-                <input id="vj-address" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="123 Main St" />
+              <div>
+                <label class="font-bold text-sm">City <span style="color:var(--brand)">*</span></label>
+                <select id="vj-city" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
+                  <option>Lagos</option>
+                  <option>Abuja</option>
+                </select>
+              </div>
+              <div>
+                <label class="font-bold text-sm">Street address / area</label>
+                <input id="vj-address" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" placeholder="e.g. 14 Admiralty Way, Lekki Phase 1" />
               </div>
             </div>
 
             <h2 class="text-lg font-extrabold mt-7 mb-4">Service &amp; pricing</h2>
             <div class="grid md:grid-cols-2 gap-4">
               <div>
-                <label class="font-bold text-sm">Delivery fee ($)</label>
-                <input id="vj-fee" type="number" step="0.01" min="0" value="1.99" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" />
+                <label class="font-bold text-sm">Delivery fee (₦)</label>
+                <input id="vj-fee" type="number" step="50" min="0" value="500" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" />
               </div>
               <div>
                 <label class="font-bold text-sm">Price range</label>
                 <select id="vj-price" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
-                  <option value="1">$ — budget friendly</option>
-                  <option value="2" selected>$$ — mid-range</option>
-                  <option value="3">$$$ — premium</option>
+                  <option value="1">₦ — budget friendly</option>
+                  <option value="2" selected>₦₦ — mid-range</option>
+                  <option value="3">₦₦₦ — premium</option>
                 </select>
               </div>
               <div class="md:col-span-2 flex flex-wrap gap-4 mt-1">
@@ -1492,6 +1517,7 @@
           phone: $('#vj-phone').value.trim() || undefined,
           type: $('#vj-type').value,
           cuisine: $('#vj-cuisine').value,
+          city: $('#vj-city').value,
           address: $('#vj-address').value.trim() || undefined,
           delivery_fee_cents: Math.round(Number($('#vj-fee').value || 0) * 100),
           price_range: Number($('#vj-price').value),
@@ -1744,18 +1770,18 @@
             </div>
             <div class="md:col-span-2">
               <label class="font-bold text-sm">Promotion banner <span class="text-gray-400 font-medium">(shown on your store card)</span></label>
-              <input id="vs-promo" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${esc(v.promo_text || '')}" placeholder="e.g. 20% off, up to $5" />
+              <input id="vs-promo" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${esc(v.promo_text || '')}" placeholder="e.g. 20% off, up to ₦2,000" />
             </div>
             <div>
-              <label class="font-bold text-sm">Delivery fee ($)</label>
-              <input id="vs-fee" type="number" step="0.01" min="0" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${(Number(v.delivery_fee_cents || 0) / 100).toFixed(2)}" />
+              <label class="font-bold text-sm">Delivery fee (₦)</label>
+              <input id="vs-fee" type="number" step="50" min="0" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${Math.round(Number(v.delivery_fee_cents || 0) / 100)}" />
             </div>
             <div>
               <label class="font-bold text-sm">Price range</label>
               <select id="vs-price" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)">
-                <option value="1" ${v.price_range == 1 ? 'selected' : ''}>$ — budget friendly</option>
-                <option value="2" ${v.price_range == 2 ? 'selected' : ''}>$$ — mid-range</option>
-                <option value="3" ${v.price_range == 3 ? 'selected' : ''}>$$$ — premium</option>
+                <option value="1" ${v.price_range == 1 ? 'selected' : ''}>₦ — budget friendly</option>
+                <option value="2" ${v.price_range == 2 ? 'selected' : ''}>₦₦ — mid-range</option>
+                <option value="3" ${v.price_range == 3 ? 'selected' : ''}>₦₦₦ — premium</option>
               </select>
             </div>
             <div>
@@ -1820,8 +1846,8 @@
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="font-bold text-sm">Price ($) <span style="color:var(--brand)">*</span></label>
-                <input id="vi-price" type="number" step="0.01" min="0" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${item ? (item.base_price / 100).toFixed(2) : ''}" placeholder="9.99" />
+                <label class="font-bold text-sm">Price (₦) <span style="color:var(--brand)">*</span></label>
+                <input id="vi-price" type="number" step="50" min="0" class="w-full mt-1.5 text-[15px] rounded-xl p-3 outline-none" style="background:var(--fill)" value="${item ? Math.round(item.base_price / 100) : ''}" placeholder="3500" />
               </div>
               <div>
                 <label class="font-bold text-sm">Photo URL</label>
