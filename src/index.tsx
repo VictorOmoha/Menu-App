@@ -17,9 +17,17 @@ const app = new Hono<{ Bindings: Bindings }>()
 
 // CORS for API routes (adjust origins in production)
 app.use('/api/*', cors())
-// Ensure schema + seed on first API hit (local dev convenience)
+// Ensure schema + seed on first API hit (local dev convenience).
+// Memoized per isolate — dozens of DDL queries must not run on every request.
+let schemaReady: Promise<void> | null = null
 app.use('/api/*', async (c, next) => {
-  await ensureSchemaAndSeed(c.env.DB)
+  if (!schemaReady) {
+    schemaReady = ensureSchemaAndSeed(c.env.DB).catch((e) => {
+      schemaReady = null
+      throw e
+    })
+  }
+  await schemaReady
   await next()
 })
 
@@ -83,8 +91,14 @@ async function incKV(c: any, key: string, n = 1) {
 }
 
 // ---------- Auth Helpers ----------
+let warnedDevSecret = false
 function getJwtSecret(c: any) {
-  return c.env?.JWT_SECRET || 'dev-secret'
+  const secret = c.env?.JWT_SECRET
+  if (!secret && !warnedDevSecret) {
+    warnedDevSecret = true
+    console.warn('[auth] JWT_SECRET is not set — falling back to an insecure dev secret. Set JWT_SECRET before deploying.')
+  }
+  return secret || 'dev-secret'
 }
 
 async function requireAuth(c: any, next: any) {
@@ -100,12 +114,31 @@ async function requireAuth(c: any, next: any) {
   await next()
 }
 
+// Resolve the acting user's id from a Bearer token when present.
+// Customer endpoints allow guest usage, so this falls back to the demo user (id 1)
+// rather than rejecting — but a signed-in user always acts as themselves, and a
+// client-supplied user_id can never override a verified token.
+async function resolveUserId(c: any, bodyUserId?: unknown): Promise<number> {
+  const h = c.req.header('Authorization') || ''
+  const m = h.match(/^Bearer\s+(.+)$/i)
+  if (m) {
+    try {
+      const payload: any = await verify(m[1], getJwtSecret(c))
+      const sub = Number(payload?.sub)
+      if (Number.isInteger(sub) && sub > 0) return sub
+    } catch {}
+  }
+  const bid = Number(bodyUserId)
+  if (Number.isInteger(bid) && bid > 0) return bid
+  return 1
+}
+
 async function requireVendor(c: any, next: any) {
   const user: any = c.get('user')
   if (!user || (user.role !== 'vendor' && user.role !== 'admin')) {
     return c.json({ error: 'forbidden' }, 403)
   }
-  if (!user.vendor_id && user.role === 'vendor') {
+  if (!(Number(user.vendor_id) > 0)) {
     return c.json({ error: 'vendor_context_required' }, 400)
   }
   await next()
@@ -114,21 +147,27 @@ async function requireVendor(c: any, next: any) {
 // ---------- Auth Endpoints ----------
 app.post('/api/auth/login', async (c) => {
   try {
-    const body = await c.req.json<{ email: string; role?: string; vendor_id?: number }>()
-    const email = (body.email || '').toLowerCase().trim()
-    if (!email) return c.json({ error: 'email_required' }, 400)
-    const role = (body.role === 'vendor' || body.role === 'admin') ? body.role : 'customer'
-    const vendorId = body.vendor_id && Number(body.vendor_id) > 0 ? Number(body.vendor_id) : undefined
+    const body = await c.req.json<{ email: string }>().catch(() => null)
+    const email = (body?.email || '').toLowerCase().trim()
+    if (!email || !email.includes('@')) return c.json({ error: 'email_required' }, 400)
     // Ensure user row exists (demo behavior)
     const db = c.env.DB
     let user = await queryOne<any>(db, 'SELECT * FROM users WHERE email = ?', [email])
     if (!user) {
-      await db.prepare('INSERT INTO users (email, role) VALUES (?, ?)').bind(email, role).run()
+      await db.prepare('INSERT INTO users (email, role) VALUES (?, ?)').bind(email, 'customer').run()
       user = await queryOne<any>(db, 'SELECT * FROM users WHERE email = ?', [email])
     }
-    // Issue token
+    // Role and vendor context come from the database — never from the request body
+    const role = user.role === 'vendor' || user.role === 'admin' || user.role === 'driver' ? user.role : 'customer'
     const payload: any = { sub: String(user.id), email, role }
-    if (role === 'vendor' && vendorId) payload.vendor_id = vendorId
+    if (role === 'vendor') {
+      const owned = await queryOne<{ id: number }>(db, 'SELECT id FROM vendors WHERE owner_user_id = ? ORDER BY id DESC LIMIT 1', [user.id])
+      if (owned) payload.vendor_id = Number(owned.id)
+    }
+    if (role === 'driver') {
+      const drv = await queryOne<{ id: number }>(db, 'SELECT id FROM drivers WHERE user_id = ? LIMIT 1', [user.id])
+      if (drv) payload.driver_id = Number(drv.id)
+    }
     const token = await sign(payload, getJwtSecret(c))
     return c.json({ token, user: payload })
   } catch (e) {
@@ -148,6 +187,7 @@ app.get('/', async (c) => {
           <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
             <a href="#how" class="hover:text-black">How it works</a>
             <a href="#vendors" class="hover:text-black">For businesses</a>
+            <a href="/driver" class="hover:text-black">Become a courier</a>
           </nav>
           <div class="flex items-center gap-2">
             <a href="/app" class="px-4 py-2 text-sm font-semibold rounded-full bg-gray-100 hover:bg-gray-200">Sign in</a>
@@ -156,7 +196,7 @@ app.get('/', async (c) => {
         </div>
       </header>
 
-      {/* Hero — DoorDash-style brand red with address entry */}
+      {/* Hero — brand red with address entry */}
       <section class="relative overflow-hidden" style="background:#EB1700">
         <img src={IMG('1512058564366-18510be2db19', 900)} alt="" class="hidden md:block absolute -left-16 -top-16 w-72 h-72 object-cover rounded-full opacity-95 rotate-[-8deg] shadow-2xl" />
         <img src={IMG('1529006557810-274b9b2fc783', 900)} alt="" class="hidden md:block absolute -right-20 top-8 w-80 h-80 object-cover rounded-full opacity-95 rotate-[7deg] shadow-2xl" />
@@ -230,7 +270,7 @@ app.get('/', async (c) => {
             <p class="mt-3 text-white/80">From Lekki to Wuse 2 — reach new customers and manage orders, menus, loyalty, reservations and group orders in one place.</p>
             <a href="/app#/vendor/join" class="mt-6 inline-block px-6 py-3 rounded-full text-white text-sm font-bold" style="background:#EB1700">Join as a vendor</a>
           </div>
-          <img src={IMG('1556910103-1c02745aae4d', 900)} alt="Chef preparing food" class="w-full h-64 md:h-full object-cover" />
+          <img src={IMG('1531123897727-8f129e1688ce', 900)} alt="Nigerian food entrepreneur" class="w-full h-64 md:h-full object-cover" />
         </div>
       </section>
 
@@ -251,7 +291,7 @@ app.get('/', async (c) => {
           </div>
           <div>
             <div class="font-bold mb-3">Doing business</div>
-            <div class="space-y-2 text-gray-600"><div>Become a vendor</div><div>Become a courier</div><div>API for partners</div></div>
+            <div class="space-y-2 text-gray-600"><div><a href="/app#/vendor/join" class="hover:text-black">Become a vendor</a></div><div><a href="/driver" class="hover:text-black">Become a courier</a></div><div>API for partners</div></div>
           </div>
         </div>
         <div class="border-t border-gray-100">
@@ -276,6 +316,17 @@ app.get('/app', (c) => {
   return c.render(<div id="app"></div>)
 })
 
+// Courier app shell (driver.js renders everything into #driver-app)
+app.get('/driver', (c) => {
+  return c.render(
+    <div>
+      <link href="/static/driver.css" rel="stylesheet" />
+      <div id="driver-app"></div>
+      <script src="/static/driver.js"></script>
+    </div>
+  )
+})
+
 
 // ---------- Helpers ----------
 async function queryAll<T>(db: D1Database, sql: string, bind: unknown[] = []) {
@@ -297,8 +348,8 @@ async function tableExists(db: D1Database, name: string) {
 async function columnExists(db: D1Database, table: string, column: string) {
   // Use PRAGMA table_info to check column existence
   const row = await db
-    .prepare(`SELECT 1 AS ok FROM pragma_table_info('${table}') WHERE name = ? LIMIT 1`)
-    .bind(column)
+    .prepare(`SELECT 1 AS ok FROM pragma_table_info(?) WHERE name = ? LIMIT 1`)
+    .bind(table, column)
     .first<{ ok: number }>()
   return !!row
 }
@@ -335,7 +386,7 @@ function haversineKm(lat1?: number | null, lon1?: number | null, lat2?: number |
   return R * c
 }
 
-// ---------- Rich demo catalog (DoorDash/UberEats-style data) ----------
+// ---------- Rich demo catalog ----------
 const IMG = (id: string, w = 800) => `https://images.unsplash.com/photo-${id}?w=${w}&q=60&auto=format&fit=crop`
 
 type SeedItem = { name: string; desc?: string; price: number; photo?: string; popular?: boolean; options?: Array<{ name: string; min: number; max: number; required: boolean; choices: Array<[string, number]> }> }
@@ -909,6 +960,7 @@ async function ensureSchemaAndSeed(db: D1Database) {
   const vendorCols: Array<[string, string]> = [
     ['image_url', 'TEXT'], ['cuisine', 'TEXT'], ['price_range', 'INTEGER'],
     ['delivery_fee_cents', 'INTEGER'], ['eta_min', 'INTEGER'], ['eta_max', 'INTEGER'], ['promo_text', 'TEXT'],
+    ['owner_user_id', 'INTEGER'],
   ]
   for (const [col, typ] of vendorCols) {
     if (!(await columnExists(db, 'vendors', col))) {
@@ -920,6 +972,72 @@ async function ensureSchemaAndSeed(db: D1Database) {
   }
   if (!(await columnExists(db, 'reviews', 'author_name'))) {
     await db.prepare(`ALTER TABLE reviews ADD COLUMN author_name TEXT`).run()
+  }
+
+  // ---- Courier (driver) tables ----
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS drivers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER UNIQUE NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT,
+        phone TEXT,
+        city TEXT NOT NULL DEFAULT 'Lagos',
+        vehicle_type TEXT NOT NULL DEFAULT 'motorcycle',
+        status TEXT NOT NULL DEFAULT 'active',
+        rating_avg REAL NOT NULL DEFAULT 5.0,
+        rating_count INTEGER NOT NULL DEFAULT 0,
+        offers_received INTEGER NOT NULL DEFAULT 0,
+        offers_accepted INTEGER NOT NULL DEFAULT 0,
+        lifetime_deliveries INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`
+    )
+    .run()
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS driver_shifts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        driver_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        ends_at DATETIME,
+        ended_at DATETIME,
+        FOREIGN KEY (driver_id) REFERENCES drivers(id)
+      )`
+    )
+    .run()
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_driver_shifts_driver_id ON driver_shifts(driver_id)`).run()
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS deliveries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER UNIQUE NOT NULL,
+        driver_id INTEGER NOT NULL,
+        shift_id INTEGER,
+        status TEXT NOT NULL DEFAULT 'accepted',
+        base_pay INTEGER NOT NULL DEFAULT 0,
+        tip INTEGER NOT NULL DEFAULT 0,
+        total_pay INTEGER NOT NULL DEFAULT 0,
+        distance_km REAL NOT NULL DEFAULT 0,
+        dropoff_address TEXT,
+        customer_rating INTEGER,
+        accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        picked_up_at DATETIME,
+        delivered_at DATETIME,
+        FOREIGN KEY (order_id) REFERENCES orders(id),
+        FOREIGN KEY (driver_id) REFERENCES drivers(id)
+      )`
+    )
+    .run()
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_deliveries_driver_id ON deliveries(driver_id)`).run()
+  if (!(await columnExists(db, 'orders', 'driver_id'))) {
+    await db.prepare(`ALTER TABLE orders ADD COLUMN driver_id INTEGER`).run()
+  }
+  if (!(await columnExists(db, 'orders', 'is_demo'))) {
+    await db.prepare(`ALTER TABLE orders ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0`).run()
   }
 
   // Upgrade to the rich demo catalog when the DB still has the old minimal seed
@@ -967,9 +1085,9 @@ app.post('/api/vendor/register', async (c) => {
 
   // vendor + location + starter menu
   const vr = await db.prepare(
-    `INSERT INTO vendors (org_name, type, tier, verified, rating_avg, rating_count, service_modes_json, image_url, cuisine, price_range, delivery_fee_cents, eta_min, eta_max, promo_text)
-     VALUES (?, ?, 'basic', 0, 0, 0, ?, ?, ?, ?, ?, 25, 40, ?)`
-  ).bind(orgName, type, JSON.stringify(modes), image, cuisine, priceRange, fee, (body.promo_text || '').trim() || null).run()
+    `INSERT INTO vendors (org_name, type, tier, verified, rating_avg, rating_count, service_modes_json, image_url, cuisine, price_range, delivery_fee_cents, eta_min, eta_max, promo_text, owner_user_id)
+     VALUES (?, ?, 'basic', 0, 0, 0, ?, ?, ?, ?, ?, 25, 40, ?, ?)`
+  ).bind(orgName, type, JSON.stringify(modes), image, cuisine, priceRange, fee, (body.promo_text || '').trim() || null, Number(user.id)).run()
   const vendorId = Number(vr.meta.last_row_id)
   const HOURS = JSON.stringify({ mon: ['00:00-23:59'], tue: ['00:00-23:59'], wed: ['00:00-23:59'], thu: ['00:00-23:59'], fri: ['00:00-23:59'], sat: ['00:00-23:59'], sun: ['00:00-23:59'] })
   await db.prepare(
@@ -1080,6 +1198,7 @@ app.delete('/api/vendor/sections/:id', requireAuth, requireVendor, async (c) => 
   const user: any = c.get('user')
   const vendorId = Number(user.vendor_id)
   const sectionId = Number(c.req.param('id'))
+  if (!Number.isInteger(sectionId) || sectionId <= 0) return c.json({ error: 'not_found' }, 404)
   if (!(await sectionOwnedByVendor(db, sectionId, vendorId))) return c.json({ error: 'forbidden' }, 403)
   await db.prepare('DELETE FROM options WHERE group_id IN (SELECT id FROM option_groups WHERE item_id IN (SELECT id FROM menu_items WHERE section_id = ?))').bind(sectionId).run()
   await db.prepare('DELETE FROM option_groups WHERE item_id IN (SELECT id FROM menu_items WHERE section_id = ?)').bind(sectionId).run()
@@ -1098,7 +1217,8 @@ app.post('/api/vendor/items', requireAuth, requireVendor, async (c) => {
   if (!body || !body.section_id || !body.name || body.base_price == null) return c.json({ error: 'section_id_name_price_required' }, 400)
   const sectionId = Number(body.section_id)
   if (!(await sectionOwnedByVendor(db, sectionId, vendorId))) return c.json({ error: 'forbidden' }, 403)
-  const price = Math.max(0, Math.min(100000, Math.round(Number(body.base_price))))
+  // Prices are stored in kobo; cap at ₦100,000 per item
+  const price = Math.max(0, Math.min(10000000, Math.round(Number(body.base_price) || 0)))
   const res = await db.prepare(
     'INSERT INTO menu_items (section_id, name, description, photo, base_price, is_available, is_popular) VALUES (?, ?, ?, ?, ?, ?, ?)'
   ).bind(sectionId, String(body.name).trim().slice(0, 80), (body.description || '').trim().slice(0, 200) || null, (body.photo || '').trim() || null, price, body.is_available === false ? 0 : 1, body.is_popular ? 1 : 0).run()
@@ -1112,6 +1232,7 @@ app.put('/api/vendor/items/:id', requireAuth, requireVendor, async (c) => {
   const user: any = c.get('user')
   const vendorId = Number(user.vendor_id)
   const itemId = Number(c.req.param('id'))
+  if (!Number.isInteger(itemId) || itemId <= 0) return c.json({ error: 'not_found' }, 404)
   if (!(await itemOwnedByVendor(db, itemId, vendorId))) return c.json({ error: 'forbidden' }, 403)
   const body = await c.req.json<any>().catch(() => ({}))
   const sets: string[] = []
@@ -1119,7 +1240,7 @@ app.put('/api/vendor/items/:id', requireAuth, requireVendor, async (c) => {
   if (typeof body.name === 'string' && body.name.trim()) { sets.push('name = ?'); bind.push(body.name.trim().slice(0, 80)) }
   if (typeof body.description === 'string') { sets.push('description = ?'); bind.push(body.description.trim().slice(0, 200) || null) }
   if (typeof body.photo === 'string') { sets.push('photo = ?'); bind.push(body.photo.trim() || null) }
-  if (body.base_price != null) { sets.push('base_price = ?'); bind.push(Math.max(0, Math.min(100000, Math.round(Number(body.base_price))))) }
+  if (body.base_price != null) { sets.push('base_price = ?'); bind.push(Math.max(0, Math.min(10000000, Math.round(Number(body.base_price) || 0)))) }
   if (body.is_available != null) { sets.push('is_available = ?'); bind.push(body.is_available ? 1 : 0) }
   if (body.is_popular != null) { sets.push('is_popular = ?'); bind.push(body.is_popular ? 1 : 0) }
   if (!sets.length) return c.json({ error: 'no_fields' }, 400)
@@ -1135,6 +1256,7 @@ app.delete('/api/vendor/items/:id', requireAuth, requireVendor, async (c) => {
   const user: any = c.get('user')
   const vendorId = Number(user.vendor_id)
   const itemId = Number(c.req.param('id'))
+  if (!Number.isInteger(itemId) || itemId <= 0) return c.json({ error: 'not_found' }, 404)
   if (!(await itemOwnedByVendor(db, itemId, vendorId))) return c.json({ error: 'forbidden' }, 403)
   await db.prepare('DELETE FROM options WHERE group_id IN (SELECT id FROM option_groups WHERE item_id = ?)').bind(itemId).run()
   await db.prepare('DELETE FROM option_groups WHERE item_id = ?').bind(itemId).run()
@@ -1192,7 +1314,8 @@ app.post('/api/metrics/ab-hero', async (c) => {
 // ---------- Utility ----------
 app.get('/api/health', (c) => c.json({ ok: true }))
 app.post('/api/dev/ensure', async (c) => {
-  await ensureSchemaAndSeed(c.env.DB)
+  schemaReady = ensureSchemaAndSeed(c.env.DB)
+  await schemaReady
   return c.json({ ensured: true })
 })
 
@@ -1370,6 +1493,7 @@ app.get('/api/vendors', async (c) => {
 app.get('/api/vendors/:id', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
   const vendor = await queryOne(db, 'SELECT * FROM vendors WHERE id = ?', [id])
   if (!vendor) return c.notFound()
   const locations = await queryAll(db, 'SELECT * FROM locations WHERE vendor_id = ?', [id])
@@ -1381,8 +1505,8 @@ app.get('/api/vendors/:id', async (c) => {
 
 app.post('/api/vendors', async (c) => {
   const db = c.env.DB
-  const body = await c.req.json<{ org_name: string; type: string; tier?: string }>()
-  if (!body.org_name || !body.type) return c.json({ error: 'org_name and type required' }, 400)
+  const body = await c.req.json<{ org_name: string; type: string; tier?: string }>().catch(() => null)
+  if (!body || !body.org_name || !body.type) return c.json({ error: 'org_name and type required' }, 400)
   const tier = body.tier || 'basic'
   const res = await db
     .prepare(`INSERT INTO vendors (org_name, type, tier, verified, rating_avg, rating_count) VALUES (?, ?, ?, 0, 0, 0)`) 
@@ -1395,6 +1519,7 @@ app.post('/api/vendors', async (c) => {
 app.get('/api/vendors/:id/menus', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
   const menu = await queryOne(db, 'SELECT * FROM menus WHERE vendor_id = ? AND is_active = 1 ORDER BY last_updated DESC LIMIT 1', [id])
   if (!menu) return c.json({ menu: null, sections: [] })
   const sections = await queryAll<any>(db, 'SELECT * FROM menu_sections WHERE menu_id = ? ORDER BY sort_order, id', [menu.id])
@@ -1411,6 +1536,7 @@ app.get('/api/vendors/:id/menus', async (c) => {
 app.get('/api/vendors/:id/reviews', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
   const reviews = await queryAll<any>(db, 'SELECT * FROM reviews WHERE vendor_id = ? ORDER BY created_at DESC LIMIT 20', [id])
   return c.json({ reviews })
 })
@@ -1418,13 +1544,19 @@ app.get('/api/vendors/:id/reviews', async (c) => {
 app.post('/api/vendors/:id/reviews', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
-  const body = await c.req.json<{ user_id?: number; rating: number; text?: string; author_name?: string }>()
-  const userId = body.user_id ?? 1 // demo user
-  const rating = Math.max(1, Math.min(5, Number(body.rating)))
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
+  const body = await c.req.json<{ user_id?: number; rating: number; text?: string; author_name?: string }>().catch(() => null)
+  if (!body) return c.json({ error: 'invalid_body' }, 400)
+  const rating = Math.round(Number(body.rating))
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) return c.json({ error: 'rating_1_to_5_required' }, 400)
+  const vendorExists = await queryOne<any>(db, 'SELECT id FROM vendors WHERE id = ?', [id])
+  if (!vendorExists) return c.json({ error: 'vendor_not_found' }, 404)
+  const userId = await resolveUserId(c, body.user_id)
+  const text = typeof body.text === 'string' ? body.text.trim().slice(0, 1000) || null : null
   const author = (body.author_name || '').trim().slice(0, 40) || 'Menu Customer'
   await db
     .prepare(`INSERT INTO reviews (user_id, vendor_id, rating, text, status, author_name) VALUES (?, ?, ?, ?, 'published', ?)`)
-    .bind(userId, id, rating, body.text || null, author)
+    .bind(userId, id, rating, text, author)
     .run()
   // Update aggregate rating (simple recalculation)
   const agg = await queryOne<{ avg: number; count: number }>(
@@ -1445,7 +1577,8 @@ app.post('/api/vendors/:id/reviews', async (c) => {
 app.get('/api/vendors/:id/loyalty', async (c) => {
   const db = c.env.DB
   const vendorId = Number(c.req.param('id'))
-  const userId = 1
+  if (!Number.isInteger(vendorId) || vendorId <= 0) return c.notFound()
+  const userId = await resolveUserId(c)
   const row = await queryOne<{ points: number }>(db, 'SELECT points FROM loyalty WHERE user_id = ? AND vendor_id = ?', [userId, vendorId])
   return c.json({ points: row?.points || 0 })
 })
@@ -1453,7 +1586,8 @@ app.get('/api/vendors/:id/loyalty', async (c) => {
 app.get('/api/vendors/:id/reservations', async (c) => {
   const db = c.env.DB
   const vendorId = Number(c.req.param('id'))
-  const userId = 1
+  if (!Number.isInteger(vendorId) || vendorId <= 0) return c.notFound()
+  const userId = await resolveUserId(c)
   const list = await queryAll<any>(db, 'SELECT * FROM reservations WHERE vendor_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 20', [vendorId, userId])
   return c.json({ reservations: list })
 })
@@ -1461,14 +1595,16 @@ app.get('/api/vendors/:id/reservations', async (c) => {
 app.post('/api/vendors/:id/reservations', async (c) => {
   const db = c.env.DB
   const vendorId = Number(c.req.param('id'))
-  const body = await c.req.json<{ party_size: number; datetime_iso: string; notes?: string }>()
-  const userId = 1
-  const party = Math.max(1, Math.min(20, Number(body.party_size || 1)))
-  const dt = String(body.datetime_iso || '').trim()
+  if (!Number.isInteger(vendorId) || vendorId <= 0) return c.notFound()
+  const body = await c.req.json<{ party_size: number; datetime_iso: string; notes?: string }>().catch(() => null)
+  if (!body) return c.json({ error: 'invalid_body' }, 400)
+  const userId = await resolveUserId(c)
+  const party = Math.max(1, Math.min(20, Math.round(Number(body.party_size) || 1)))
+  const dt = String(body.datetime_iso || '').trim().slice(0, 40)
   if (!dt) return c.json({ error: 'datetime_iso required' }, 400)
   const res = await db
     .prepare('INSERT INTO reservations (user_id, vendor_id, party_size, datetime_iso, notes, status) VALUES (?, ?, ?, ?, ?, "requested")')
-    .bind(userId, vendorId, party, dt, body.notes || null)
+    .bind(userId, vendorId, party, dt, (body.notes || '').trim().slice(0, 500) || null)
     .run()
   const id = Number(res.meta.last_row_id)
   const rec = await queryOne<any>(db, 'SELECT * FROM reservations WHERE id = ?', [id])
@@ -1479,8 +1615,8 @@ app.post('/api/vendors/:id/reservations', async (c) => {
 app.post('/api/payments/intent', async (c) => {
   const body = await c.req.json<{ amount: number; currency?: string }>().catch(() => ({ amount: 0 }))
   const amount = Number(body.amount || 0)
-  const currency = (body.currency || 'USD').toUpperCase()
-  if (amount <= 0) return c.json({ error: 'amount required' }, 400)
+  const currency = (body.currency || 'NGN').toUpperCase()
+  if (!(amount > 0)) return c.json({ error: 'amount required' }, 400)
   // In production, call Stripe/Adyen to create PaymentIntent and return client_secret
   return c.json({ provider: 'test', client_secret: `test_secret_${amount}_${currency}` })
 })
@@ -1498,13 +1634,15 @@ app.post('/api/group/start', async (c) => {
   const body = await c.req.json<{ vendor_id: number; user_id?: number }>().catch(()=>({vendor_id:0}))
   const vendorId = Number(body.vendor_id||0)
   if (!vendorId) return c.json({ error: 'vendor_id required' }, 400)
-  const userId = body.user_id ?? 1
+  const vendorExists = await queryOne<{ id: number }>(db, 'SELECT id FROM vendors WHERE id = ?', [vendorId])
+  if (!vendorExists) return c.json({ error: 'vendor_not_found' }, 400)
+  const userId = await resolveUserId(c, body.user_id)
   // generate unique code
-  let code = ''
+  let code: string | null = null
   for (let i=0;i<5;i++) {
-    code = randomCode(6)
-    const exists = await queryOne<{id:number}>(db, 'SELECT id FROM group_orders WHERE code = ?', [code])
-    if (!exists) break
+    const candidate = randomCode(6)
+    const exists = await queryOne<{id:number}>(db, 'SELECT id FROM group_orders WHERE code = ?', [candidate])
+    if (!exists) { code = candidate; break }
   }
   if (!code) return c.json({ error: 'unable_to_allocate_code' }, 500)
   const res = await db.prepare('INSERT INTO group_orders (vendor_id, code, owner_user_id, status) VALUES (?, ?, ?, "open")')
@@ -1527,21 +1665,27 @@ app.post('/api/group/:code/add', async (c) => {
   const code = c.req.param('code')
   const group = await queryOne<any>(db, 'SELECT * FROM group_orders WHERE code = ? AND status = "open"', [code])
   if (!group) return c.json({ error: 'group_not_found_or_closed' }, 404)
-  const body = await c.req.json<{ user_id?: number; user_name?: string; item_id: number; qty: number; selected_options?: number[] }>()
-  const userId = body.user_id ?? 1
-  const userName = (body.user_name || '').trim() || 'Guest'
-  const row = await queryOne<any>(db, 'SELECT id, base_price FROM menu_items WHERE id = ?', [body.item_id])
+  const body = await c.req.json<{ user_id?: number; user_name?: string; item_id: number; qty: number; selected_options?: number[] }>().catch(() => null)
+  if (!body) return c.json({ error: 'invalid_body' }, 400)
+  const userId = await resolveUserId(c, body.user_id)
+  const userName = (body.user_name || '').trim().slice(0, 40) || 'Guest'
+  // Item must belong to the group's vendor
+  const row = await queryOne<any>(
+    db,
+    'SELECT i.id, i.base_price FROM menu_items i JOIN menu_sections s ON s.id = i.section_id JOIN menus m ON m.id = s.menu_id WHERE i.id = ? AND m.vendor_id = ?',
+    [Number(body.item_id) || 0, group.vendor_id]
+  )
   if (!row) return c.json({ error: 'item_not_found' }, 400)
   let unit = Number(row.base_price||0)
-  const opts = Array.isArray(body.selected_options) ? body.selected_options : []
+  const opts = (Array.isArray(body.selected_options) ? body.selected_options : []).map((o) => Number(o) || 0)
   if (opts.length) {
-    const deltas = await queryAll<{ price_delta: number }>(db, `SELECT price_delta FROM options WHERE id IN (${opts.map(()=>'?').join(',')})`, opts as unknown[])
+    const deltas = await queryAll<{ price_delta: number }>(db, `SELECT o.price_delta FROM options o JOIN option_groups g ON g.id = o.group_id WHERE o.id IN (${opts.map(()=>'?').join(',')}) AND g.item_id = ?`, [...opts, row.id] as unknown[])
     unit += deltas.reduce((s,d)=> s + (d.price_delta||0), 0)
   }
-  const qty = Math.max(1, Number(body.qty||1))
+  const qty = Math.max(1, Math.min(99, Math.round(Number(body.qty) || 1)))
   const line = unit * qty
   await db.prepare('INSERT INTO group_order_items (group_id, user_id, user_name, item_id, qty, selected_options_json, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(group.id, userId, userName, body.item_id, qty, JSON.stringify(opts), line).run()
+    .bind(group.id, userId, userName, row.id, qty, JSON.stringify(opts), line).run()
   const items = await queryAll<any>(db, 'SELECT * FROM group_order_items WHERE group_id = ? ORDER BY id', [group.id])
   const subtotal = items.reduce((s, it) => s + (it.line_total||0), 0)
   return c.json({ ok: true, subtotal, count: items.length })
@@ -1552,7 +1696,7 @@ app.post('/api/group/:code/submit', async (c) => {
   const code = c.req.param('code')
   const group = await queryOne<any>(db, 'SELECT * FROM group_orders WHERE code = ? AND status = "open"', [code])
   if (!group) return c.json({ error: 'group_not_found_or_closed' }, 404)
-  const body = await c.req.json<{ type: string; tip_cents?: number; promo_code?: string; distance_km?: number; loyalty_points?: number }>()
+  const body = await c.req.json<{ type: string; tip_cents?: number; promo_code?: string; distance_km?: number; loyalty_points?: number }>().catch(() => ({ type: 'pickup' } as any))
   const userId = group.owner_user_id || 1
   const vendorId = group.vendor_id
   const gItems = await queryAll<any>(db, 'SELECT * FROM group_order_items WHERE group_id = ? ORDER BY id', [group.id])
@@ -1582,7 +1726,7 @@ app.post('/api/group/:code/submit', async (c) => {
     loyaltyRedeem = Math.max(0, Math.min(requested, available, maxBySubtotal))
     discount += loyaltyRedeem
   }
-  const tip = Math.max(0, Number(body.tip_cents || 0))
+  const tip = Math.max(0, Math.round(Number(body.tip_cents) || 0))
   const total = Math.max(0, subtotal + taxes + fees + tip - discount)
 
   // Create order
@@ -1632,9 +1776,13 @@ app.post('/api/orders', async (c) => {
   type ItemReq = { item_id: number; qty: number; selected_options?: number[] }
   const body = await c
     .req
-    .json<{ vendor_id: number; type: string; items: ItemReq[]; user_id?: number; tip_cents?: number; promo_code?: string; distance_km?: number; loyalty_points?: number; priority?: boolean }>({ vendor_id: 0, type: 'pickup', items: [] } as any)
-  const userId = body.user_id ?? 1 // demo user
-  const vendorId = body.vendor_id
+    .json<{ vendor_id: number; type: string; items: ItemReq[]; user_id?: number; tip_cents?: number; promo_code?: string; distance_km?: number; loyalty_points?: number; priority?: boolean }>()
+    .catch(() => null)
+  if (!body || !(Number(body.vendor_id) > 0) || !Array.isArray(body.items) || body.items.length === 0) {
+    return c.json({ error: 'vendor_id_and_items_required' }, 400)
+  }
+  const userId = await resolveUserId(c, body.user_id)
+  const vendorId = Number(body.vendor_id)
   const type = body.type === 'delivery' ? 'delivery' : 'pickup'
   const vendorRow = await queryOne<any>(db, 'SELECT * FROM vendors WHERE id = ?', [vendorId])
   if (!vendorRow) return c.json({ error: 'vendor_not_found' }, 400)
@@ -1642,19 +1790,24 @@ app.post('/api/orders', async (c) => {
   let subtotal = 0
   const pricedItems: Array<{ item_id: number; qty: number; unit_price: number; line_total: number; selected_options: number[]; name: string }> = []
   for (const it of body.items) {
-    const row = await queryOne<any>(db, 'SELECT id, name, base_price FROM menu_items WHERE id = ?', [it.item_id])
+    // Item must belong to this vendor's menu
+    const row = await queryOne<any>(
+      db,
+      'SELECT i.id, i.name, i.base_price FROM menu_items i JOIN menu_sections s ON s.id = i.section_id JOIN menus m ON m.id = s.menu_id WHERE i.id = ? AND m.vendor_id = ?',
+      [Number(it.item_id) || 0, vendorId]
+    )
     if (!row) return c.json({ error: `Item ${it.item_id} not found` }, 400)
     let unit = row.base_price as number
-    const opts = Array.isArray(it.selected_options) ? it.selected_options : []
+    const opts = (Array.isArray(it.selected_options) ? it.selected_options : []).map((o) => Number(o) || 0)
     if (opts.length) {
       const deltas = await queryAll<{ price_delta: number }>(
         db,
-        `SELECT price_delta FROM options WHERE id IN (${opts.map(() => '?').join(',')})`,
-        opts as unknown[]
+        `SELECT o.price_delta FROM options o JOIN option_groups g ON g.id = o.group_id WHERE o.id IN (${opts.map(() => '?').join(',')}) AND g.item_id = ?`,
+        [...opts, row.id] as unknown[]
       )
       unit += deltas.reduce((s, d) => s + (d.price_delta || 0), 0)
     }
-    const qty = Math.max(1, Number((it as any).qty || 1))
+    const qty = Math.max(1, Math.min(99, Math.round(Number((it as any).qty) || 1)))
     const line = unit * qty
     subtotal += line
     pricedItems.push({ item_id: row.id, qty, unit_price: unit, line_total: line, selected_options: opts, name: row.name })
@@ -1697,7 +1850,7 @@ app.post('/api/orders', async (c) => {
     loyaltyRedeem = Math.max(0, Math.min(requested, available, maxBySubtotal))
     discount += loyaltyRedeem
   }
-  const tip = Math.max(0, Number(body.tip_cents || 0))
+  const tip = Math.max(0, Math.round(Number(body.tip_cents) || 0))
   const total = Math.max(0, subtotal + taxes + fees + tip - discount)
 
   // create order
@@ -1751,6 +1904,7 @@ app.post('/api/orders', async (c) => {
 app.get('/api/orders/:id', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
   const order = await queryOne<any>(db, 'SELECT * FROM orders WHERE id = ?', [id])
   if (!order) return c.notFound()
   const items = await queryAll<any>(db, "SELECT oi.*, COALESCE(mi.name, 'Removed item') AS item_name, mi.photo AS item_photo FROM order_items oi LEFT JOIN menu_items mi ON mi.id = oi.item_id WHERE oi.order_id = ?", [id])
@@ -1761,7 +1915,8 @@ app.get('/api/orders/:id', async (c) => {
 app.post('/api/orders/:id/status', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
-  const body = await c.req.json<{ status: string; eta?: string }>()
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
+  const body = await c.req.json<{ status: string; eta?: string }>().catch(() => ({ status: '' }))
   const allowed = new Set([
     'Draft',
     'Submitted',
@@ -1782,10 +1937,381 @@ app.post('/api/orders/:id/status', async (c) => {
   return c.json({ order })
 })
 
+// ============================================================
+// Courier (driver) API — powers the Menu Courier app at /driver
+// ============================================================
+
+const VEHICLE_TYPES = ['car', 'motorcycle', 'scooter', 'ebike', 'bicycle']
+
+// Plausible dropoff addresses per city for demo deliveries
+const DROPOFFS: Record<string, string[]> = {
+  Lagos: [
+    '5 Fola Osibo Rd, Lekki Phase 1', '22 Bourdillon Rd, Ikoyi', '11 Ozumba Mbadiwe Ave, Victoria Island',
+    '3 Akin Adesola St, Victoria Island', '18 Freedom Way, Lekki Phase 1', '7 Thompson Ave, Ikoyi',
+    '41 Adelabu St, Surulere', '9 Allen Ave, Ikeja',
+  ],
+  Abuja: [
+    '14 Gana St, Maitama', '2 Ademola Adetokunbo Cres, Wuse 2', '25 Lake Chad Cres, Maitama',
+    '8 Usuma St, Maitama', '31 Aguiyi Ironsi St, Maitama', '6 Mississippi St, Maitama',
+  ],
+}
+
+// Deterministic pseudo-distance for an order (1.2–8.1 km)
+function orderDistanceKm(orderId: number) {
+  return Math.round((1.2 + ((orderId * 37) % 70) / 10) * 10) / 10
+}
+function orderDropoff(orderId: number, city: string) {
+  const list = DROPOFFS[city] || DROPOFFS.Lagos
+  return list[orderId % list.length]
+}
+// Base pay: ₦600 + ₦120/km, in kobo
+function basePayFor(km: number) {
+  return 60000 + Math.round(km * 12000)
+}
+
+async function requireDriver(c: any, next: any) {
+  const user: any = c.get('user')
+  if (!user || user.role !== 'driver' || !(Number(user.driver_id) > 0)) {
+    return c.json({ error: 'driver_forbidden' }, 403)
+  }
+  await next()
+}
+
+async function activeShift(db: D1Database, driverId: number) {
+  return queryOne<any>(db, "SELECT * FROM driver_shifts WHERE driver_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [driverId])
+}
+async function currentDelivery(db: D1Database, driverId: number) {
+  return queryOne<any>(db, "SELECT * FROM deliveries WHERE driver_id = ? AND status != 'delivered' ORDER BY id DESC LIMIT 1", [driverId])
+}
+
+// Sign up as a courier (mirrors vendor register: instant demo onboarding)
+app.post('/api/driver/register', async (c) => {
+  const db = c.env.DB
+  const body = await c.req.json<{
+    first_name: string; last_name?: string; email: string; phone?: string
+    city?: string; vehicle_type?: string
+  }>().catch(() => null)
+  const email = (body?.email || '').toLowerCase().trim()
+  const firstName = (body?.first_name || '').trim().slice(0, 40)
+  if (!email || !email.includes('@') || !firstName) return c.json({ error: 'name_and_email_required' }, 400)
+  const lastName = (body?.last_name || '').trim().slice(0, 40) || null
+  const phone = (body?.phone || '').trim().slice(0, 20) || null
+  const city = body?.city === 'Abuja' ? 'Abuja' : 'Lagos'
+  const vehicle = VEHICLE_TYPES.includes(body?.vehicle_type || '') ? body!.vehicle_type! : 'motorcycle'
+
+  let user = await queryOne<any>(db, 'SELECT * FROM users WHERE email = ?', [email])
+  if (!user) {
+    await db.prepare('INSERT INTO users (email, phone, role) VALUES (?, ?, ?)').bind(email, phone, 'driver').run()
+    user = await queryOne<any>(db, 'SELECT * FROM users WHERE email = ?', [email])
+  } else if (user.role === 'customer' || user.role === 'driver') {
+    await db.prepare("UPDATE users SET role = 'driver', phone = COALESCE(?, phone) WHERE id = ?").bind(phone, user.id).run()
+  } else {
+    return c.json({ error: 'email_in_use_by_business_account' }, 400)
+  }
+
+  let driver = await queryOne<any>(db, 'SELECT * FROM drivers WHERE user_id = ?', [user.id])
+  if (!driver) {
+    await db.prepare(
+      'INSERT INTO drivers (user_id, first_name, last_name, phone, city, vehicle_type) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(Number(user.id), firstName, lastName, phone, city, vehicle).run()
+    driver = await queryOne<any>(db, 'SELECT * FROM drivers WHERE user_id = ?', [user.id])
+  } else {
+    await db.prepare('UPDATE drivers SET first_name = ?, last_name = ?, phone = COALESCE(?, phone), city = ?, vehicle_type = ? WHERE id = ?')
+      .bind(firstName, lastName, phone, city, vehicle, driver.id).run()
+    driver = await queryOne<any>(db, 'SELECT * FROM drivers WHERE id = ?', [driver.id])
+  }
+
+  const payload: any = { sub: String(user.id), email, role: 'driver', driver_id: Number(driver.id) }
+  const token = await sign(payload, getJwtSecret(c))
+  return c.json({ token, user: payload, driver })
+})
+
+// Profile + live context (active shift, current delivery)
+app.get('/api/driver/self', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driverId = Number(user.driver_id)
+  const driver = await queryOne<any>(db, 'SELECT * FROM drivers WHERE id = ?', [driverId])
+  if (!driver) return c.json({ error: 'driver_not_found' }, 404)
+  const shift = await activeShift(db, driverId)
+  const delivery = await currentDelivery(db, driverId)
+  let shiftEarnings = 0
+  let shiftDeliveries = 0
+  if (shift) {
+    const agg = await queryOne<{ total: number; n: number }>(
+      db,
+      "SELECT COALESCE(SUM(total_pay),0) AS total, COUNT(1) AS n FROM deliveries WHERE shift_id = ? AND status = 'delivered'",
+      [shift.id]
+    )
+    shiftEarnings = Number(agg?.total || 0)
+    shiftDeliveries = Number(agg?.n || 0)
+  }
+  return c.json({ driver, shift, delivery, shift_earnings: shiftEarnings, shift_deliveries: shiftDeliveries })
+})
+
+// Start a shift (idempotent: returns the active shift if one exists)
+app.post('/api/driver/shift/start', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driverId = Number(user.driver_id)
+  let shift = await activeShift(db, driverId)
+  if (!shift) {
+    const body = await c.req.json<{ duration_min?: number }>().catch(() => ({}))
+    const mins = Math.max(30, Math.min(720, Math.round(Number(body?.duration_min) || 240)))
+    await db.prepare(
+      "INSERT INTO driver_shifts (driver_id, status, ends_at) VALUES (?, 'active', datetime('now', ?))"
+    ).bind(driverId, `+${mins} minutes`).run()
+    shift = await activeShift(db, driverId)
+  }
+  return c.json({ shift })
+})
+
+app.post('/api/driver/shift/end', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driverId = Number(user.driver_id)
+  const shift = await activeShift(db, driverId)
+  if (!shift) return c.json({ error: 'no_active_shift' }, 400)
+  const delivery = await currentDelivery(db, driverId)
+  if (delivery) return c.json({ error: 'delivery_in_progress' }, 400)
+  await db.prepare("UPDATE driver_shifts SET status = 'ended', ended_at = CURRENT_TIMESTAMP WHERE id = ?").bind(shift.id).run()
+  const agg = await queryOne<{ total: number; n: number }>(
+    db,
+    "SELECT COALESCE(SUM(total_pay),0) AS total, COUNT(1) AS n FROM deliveries WHERE shift_id = ? AND status = 'delivered'",
+    [shift.id]
+  )
+  return c.json({ ok: true, earnings: Number(agg?.total || 0), deliveries: Number(agg?.n || 0) })
+})
+
+// Next available offer: oldest unassigned delivery order in the driver's city
+app.get('/api/driver/offers', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driverId = Number(user.driver_id)
+  const driver = await queryOne<any>(db, 'SELECT * FROM drivers WHERE id = ?', [driverId])
+  const shift = await activeShift(db, driverId)
+  if (!shift) return c.json({ offer: null, reason: 'offline' })
+  if (await currentDelivery(db, driverId)) return c.json({ offer: null, reason: 'busy' })
+  const skipCsv = (c.req.query('skip') || '').split(',').map((s) => Number(s)).filter((n) => Number.isInteger(n) && n > 0).slice(0, 50)
+  const skipClause = skipCsv.length ? `AND o.id NOT IN (${skipCsv.map(() => '?').join(',')})` : ''
+  const order = await queryOne<any>(
+    db,
+    `SELECT o.*, v.org_name AS vendor_name, v.image_url AS vendor_image, l.address AS vendor_address, l.city AS vendor_city
+     FROM orders o
+     JOIN vendors v ON v.id = o.vendor_id
+     LEFT JOIN locations l ON l.vendor_id = v.id
+     WHERE o.type = 'delivery' AND o.driver_id IS NULL
+       AND o.status IN ('Submitted','Accepted','In-Prep','Ready')
+       AND (l.city = ? OR l.city IS NULL)
+       ${skipClause}
+     ORDER BY o.id ASC LIMIT 1`,
+    [driver.city, ...skipCsv] as unknown[]
+  )
+  if (!order) return c.json({ offer: null, reason: 'no_orders' })
+  const itemsAgg = await queryOne<{ n: number }>(db, 'SELECT COALESCE(SUM(qty),0) AS n FROM order_items WHERE order_id = ?', [order.id])
+  const km = orderDistanceKm(Number(order.id))
+  const basePay = basePayFor(km)
+  const tip = Number(order.tip || 0)
+  return c.json({
+    offer: {
+      order_id: order.id,
+      vendor_name: order.vendor_name,
+      vendor_image: order.vendor_image,
+      vendor_address: order.vendor_address,
+      city: order.vendor_city || driver.city,
+      items_count: Number(itemsAgg?.n || 0),
+      distance_km: km,
+      base_pay: basePay,
+      tip,
+      total_pay: basePay + tip,
+      dropoff_address: orderDropoff(Number(order.id), order.vendor_city || driver.city),
+      deliver_by_min: 12 + Math.round(km * 4),
+      is_demo: Number(order.is_demo || 0) === 1,
+    },
+  })
+})
+
+// Accept an offer (atomic claim on orders.driver_id)
+app.post('/api/driver/offers/:orderId/accept', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driverId = Number(user.driver_id)
+  const orderId = Number(c.req.param('orderId'))
+  if (!Number.isInteger(orderId) || orderId <= 0) return c.json({ error: 'not_found' }, 404)
+  const shift = await activeShift(db, driverId)
+  if (!shift) return c.json({ error: 'not_on_shift' }, 400)
+  if (await currentDelivery(db, driverId)) return c.json({ error: 'delivery_in_progress' }, 400)
+  const claim = await db.prepare(
+    "UPDATE orders SET driver_id = ? WHERE id = ? AND driver_id IS NULL AND type = 'delivery' AND status IN ('Submitted','Accepted','In-Prep','Ready')"
+  ).bind(driverId, orderId).run()
+  if (!claim.meta.changes) return c.json({ error: 'offer_gone' }, 409)
+  const order = await queryOne<any>(db, 'SELECT o.*, (SELECT city FROM locations WHERE vendor_id = o.vendor_id LIMIT 1) AS vendor_city FROM orders o WHERE o.id = ?', [orderId])
+  const km = orderDistanceKm(orderId)
+  const basePay = basePayFor(km)
+  const tip = Number(order?.tip || 0)
+  await db.prepare(
+    `INSERT INTO deliveries (order_id, driver_id, shift_id, status, base_pay, tip, total_pay, distance_km, dropoff_address)
+     VALUES (?, ?, ?, 'accepted', ?, ?, ?, ?, ?)`
+  ).bind(orderId, driverId, shift.id, basePay, tip, basePay + tip, km, orderDropoff(orderId, order?.vendor_city || 'Lagos')).run()
+  await db.prepare('UPDATE drivers SET offers_received = offers_received + 1, offers_accepted = offers_accepted + 1 WHERE id = ?').bind(driverId).run()
+  const delivery = await queryOne<any>(db, 'SELECT * FROM deliveries WHERE order_id = ?', [orderId])
+  return c.json({ delivery })
+})
+
+app.post('/api/driver/offers/:orderId/decline', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  await db.prepare('UPDATE drivers SET offers_received = offers_received + 1 WHERE id = ?').bind(Number(user.driver_id)).run()
+  return c.json({ ok: true })
+})
+
+// Current delivery with order details for the pickup/dropoff flow
+app.get('/api/driver/delivery', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const delivery = await currentDelivery(db, Number(user.driver_id))
+  if (!delivery) return c.json({ delivery: null })
+  const order = await queryOne<any>(db, 'SELECT * FROM orders WHERE id = ?', [delivery.order_id])
+  const vendor = await queryOne<any>(db, 'SELECT id, org_name, image_url, cuisine FROM vendors WHERE id = ?', [order.vendor_id])
+  const loc = await queryOne<any>(db, 'SELECT address, city FROM locations WHERE vendor_id = ? LIMIT 1', [order.vendor_id])
+  const items = await queryAll<any>(db, "SELECT oi.qty, COALESCE(mi.name,'Item') AS name FROM order_items oi LEFT JOIN menu_items mi ON mi.id = oi.item_id WHERE oi.order_id = ?", [delivery.order_id])
+  const customer = await queryOne<any>(db, 'SELECT email FROM users WHERE id = ?', [order.user_id])
+  const customerName = (customer?.email || 'customer@menu.ng').split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase())
+  return c.json({ delivery, order, vendor, vendor_address: loc?.address || null, items, customer_name: customerName })
+})
+
+// Advance the delivery: arrived_store → picked_up → arrived_customer → delivered
+app.post('/api/driver/delivery/:id/advance', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driverId = Number(user.driver_id)
+  const id = Number(c.req.param('id'))
+  const delivery = await queryOne<any>(db, 'SELECT * FROM deliveries WHERE id = ? AND driver_id = ?', [id, driverId])
+  if (!delivery) return c.json({ error: 'not_found' }, 404)
+  const flow = ['accepted', 'arrived_store', 'picked_up', 'arrived_customer', 'delivered']
+  const idx = flow.indexOf(delivery.status)
+  if (idx < 0 || idx >= flow.length - 1) return c.json({ error: 'already_delivered' }, 400)
+  const next = flow[idx + 1]
+  if (next === 'picked_up') {
+    await db.prepare("UPDATE deliveries SET status = ?, picked_up_at = CURRENT_TIMESTAMP WHERE id = ?").bind(next, id).run()
+    await db.prepare("UPDATE orders SET status = 'Out-for-Delivery' WHERE id = ?").bind(delivery.order_id).run()
+  } else if (next === 'delivered') {
+    // Simulated customer rating: mostly 5s, deterministic per delivery
+    const rating = (id * 13) % 10 < 8 ? 5 : 4
+    await db.prepare("UPDATE deliveries SET status = ?, delivered_at = CURRENT_TIMESTAMP, customer_rating = ? WHERE id = ?").bind(next, rating, id).run()
+    await db.prepare("UPDATE orders SET status = 'Completed' WHERE id = ?").bind(delivery.order_id).run()
+    await db.prepare(
+      `UPDATE drivers SET lifetime_deliveries = lifetime_deliveries + 1,
+         rating_avg = (rating_avg * rating_count + ?) / (rating_count + 1),
+         rating_count = rating_count + 1
+       WHERE id = ?`
+    ).bind(rating, driverId).run()
+  } else {
+    await db.prepare('UPDATE deliveries SET status = ? WHERE id = ?').bind(next, id).run()
+  }
+  const updated = await queryOne<any>(db, 'SELECT * FROM deliveries WHERE id = ?', [id])
+  return c.json({ delivery: updated })
+})
+
+// Earnings: last-7-day summary, per-day breakdown, recent shifts
+app.get('/api/driver/earnings', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driverId = Number(user.driver_id)
+  const week = await queryOne<any>(
+    db,
+    `SELECT COALESCE(SUM(total_pay),0) AS total, COALESCE(SUM(base_pay),0) AS base, COALESCE(SUM(tip),0) AS tips, COUNT(1) AS n
+     FROM deliveries WHERE driver_id = ? AND status = 'delivered' AND delivered_at >= datetime('now','-7 days')`,
+    [driverId]
+  )
+  const byDay = await queryAll<any>(
+    db,
+    `SELECT date(delivered_at) AS day, COALESCE(SUM(total_pay),0) AS total, COUNT(1) AS n
+     FROM deliveries WHERE driver_id = ? AND status = 'delivered' AND delivered_at >= datetime('now','-7 days')
+     GROUP BY date(delivered_at) ORDER BY day DESC`,
+    [driverId]
+  )
+  const lifetime = await queryOne<any>(
+    db,
+    `SELECT COALESCE(SUM(total_pay),0) AS total, COUNT(1) AS n FROM deliveries WHERE driver_id = ? AND status = 'delivered'`,
+    [driverId]
+  )
+  const shifts = await queryAll<any>(
+    db,
+    `SELECT s.*, COALESCE((SELECT SUM(d.total_pay) FROM deliveries d WHERE d.shift_id = s.id AND d.status='delivered'),0) AS earnings,
+            (SELECT COUNT(1) FROM deliveries d WHERE d.shift_id = s.id AND d.status='delivered') AS deliveries
+     FROM driver_shifts s WHERE s.driver_id = ? ORDER BY s.id DESC LIMIT 14`,
+    [driverId]
+  )
+  return c.json({ week, by_day: byDay, lifetime, shifts })
+})
+
+// Ratings & delivery quality
+app.get('/api/driver/ratings', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driverId = Number(user.driver_id)
+  const driver = await queryOne<any>(db, 'SELECT * FROM drivers WHERE id = ?', [driverId])
+  const recent = await queryAll<any>(
+    db,
+    `SELECT d.id, d.customer_rating, d.total_pay, d.delivered_at, v.org_name AS vendor_name
+     FROM deliveries d JOIN orders o ON o.id = d.order_id JOIN vendors v ON v.id = o.vendor_id
+     WHERE d.driver_id = ? AND d.status = 'delivered' ORDER BY d.id DESC LIMIT 20`,
+    [driverId]
+  )
+  const received = Number(driver?.offers_received || 0)
+  const accepted = Number(driver?.offers_accepted || 0)
+  return c.json({
+    rating_avg: Number(driver?.rating_avg || 5),
+    rating_count: Number(driver?.rating_count || 0),
+    lifetime_deliveries: Number(driver?.lifetime_deliveries || 0),
+    acceptance_rate: received ? Math.round((accepted / received) * 100) : 100,
+    completion_rate: 100,
+    on_time_rate: 98,
+    recent,
+  })
+})
+
+// Create a demo order so a new courier always has something to deliver
+app.post('/api/driver/demo-order', requireAuth, requireDriver, async (c) => {
+  const db = c.env.DB
+  const user: any = c.get('user')
+  const driver = await queryOne<any>(db, 'SELECT * FROM drivers WHERE id = ?', [Number(user.driver_id)])
+  const vendor = await queryOne<any>(
+    db,
+    `SELECT v.id, l.city FROM vendors v JOIN locations l ON l.vendor_id = v.id WHERE l.city = ? ORDER BY RANDOM() LIMIT 1`,
+    [driver?.city || 'Lagos']
+  )
+  if (!vendor) return c.json({ error: 'no_vendors' }, 400)
+  const items = await queryAll<any>(
+    db,
+    `SELECT i.id, i.base_price FROM menu_items i JOIN menu_sections s ON s.id = i.section_id JOIN menus m ON m.id = s.menu_id
+     WHERE m.vendor_id = ? AND i.is_available = 1 ORDER BY RANDOM() LIMIT 2`,
+    [vendor.id]
+  )
+  if (!items.length) return c.json({ error: 'no_items' }, 400)
+  let subtotal = 0
+  for (const it of items) subtotal += Number(it.base_price || 0)
+  const taxes = Math.round(subtotal * 0.075)
+  const fees = 50000 + Math.round(subtotal * 0.05)
+  const tip = [20000, 50000, 80000, 100000, 150000][Math.floor(Math.random() * 5)]
+  const total = subtotal + taxes + fees + tip
+  const orderRes = await db.prepare(
+    `INSERT INTO orders (user_id, vendor_id, type, subtotal, taxes, fees, tip, total, status, eta, is_demo) VALUES (1, ?, 'delivery', ?, ?, ?, ?, ?, 'Ready', '25-40m', 1)`
+  ).bind(vendor.id, subtotal, taxes, fees, tip, total).run()
+  const orderId = Number(orderRes.meta.last_row_id)
+  for (const it of items) {
+    await db.prepare('INSERT INTO order_items (order_id, item_id, qty, selected_options_json, line_total) VALUES (?, ?, 1, ?, ?)')
+      .bind(orderId, it.id, '[]', Number(it.base_price || 0)).run()
+  }
+  return c.json({ ok: true, order_id: orderId })
+})
+
 // Item options
 app.get('/api/items/:id/options', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id) || id <= 0) return c.notFound()
   const groups = await queryAll<any>(db, 'SELECT id, name, min, max, required FROM option_groups WHERE item_id = ? ORDER BY id', [id])
   const result = [] as any[]
   for (const g of groups) {

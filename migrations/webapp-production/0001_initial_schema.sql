@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS vendors (
   rating_avg REAL DEFAULT 0,
   rating_count INTEGER DEFAULT 0,
   payout_account_id TEXT,
+  owner_user_id INTEGER, -- FK users(id); set at registration, drives vendor-context in JWT
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -44,6 +44,13 @@
   const CITIES = ['Lagos', 'Abuja']
 
   // ---------- api ----------
+  // Attach the signed-in customer's bearer token so the server scopes
+  // loyalty, orders, and reservations to the real user (not the demo user).
+  function authHeaders() {
+    const u = store.get('menu_user', null)
+    return u && u.token ? { Authorization: `Bearer ${u.token}` } : {}
+  }
+  const getJSON = (url) => fetch(url, { headers: authHeaders() }).then((r) => r.json())
   const api = {
     vendors: (qs) => fetch('/api/vendors' + (qs ? `?${qs}` : '')).then((r) => r.json()),
     vendor: (id) => fetch(`/api/vendors/${id}`).then((r) => r.json()),
@@ -51,7 +58,7 @@
     itemOptions: (id) => fetch(`/api/items/${id}/options`).then((r) => r.json()),
     reviews: (id) => fetch(`/api/vendors/${id}/reviews`).then((r) => r.json()),
     postReview: (id, p) => fetch(`/api/vendors/${id}/reviews`, post(p)).then((r) => r.json()),
-    loyalty: (id) => fetch(`/api/vendors/${id}/loyalty`).then((r) => r.json()),
+    loyalty: (id) => getJSON(`/api/vendors/${id}/loyalty`),
     postReservation: (id, p) => fetch(`/api/vendors/${id}/reservations`, post(p)).then((r) => r.json()),
     createOrder: (p) => fetch('/api/orders', post(p)).then((r) => r.json()),
     order: (id) => fetch(`/api/orders/${id}`).then((r) => r.json()),
@@ -62,7 +69,7 @@
     groupAdd: (code, p) => fetch(`/api/group/${code}/add`, post(p)).then((r) => r.json()),
     groupSubmit: (code, p) => fetch(`/api/group/${code}/submit`, post(p)).then((r) => r.json()),
   }
-  function post(p) { return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) } }
+  function post(p) { return { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()), body: JSON.stringify(p) } }
 
   // Vendor portal API (JWT-authenticated)
   function vfetch(url, opts) {
@@ -347,7 +354,7 @@
       <div class="grid md:grid-cols-2 gap-4 mt-6">
         <div class="rounded-2xl p-6 md:p-7 flex items-center justify-between overflow-hidden relative" style="background:linear-gradient(120deg,#EB1700,#FF5A3C)">
           <div class="text-white relative z-10">
-            <div class="text-xl md:text-2xl font-extrabold">20% off your first order</div>
+            <div class="text-xl md:text-2xl font-extrabold">10% off your first order</div>
             <div class="text-white/85 text-sm mt-1">Use code <b>SAVE10</b> at checkout • up to ₦1,000</div>
             <button class="mt-4 bg-white text-gray-900 text-sm font-bold rounded-full px-5 py-2.5" data-promo-cta>Order now</button>
           </div>
@@ -411,7 +418,14 @@
       <div class="skel w-full" style="height:280px;border-radius:16px"></div>
       <div class="skel h-8 w-1/3 mt-6"></div><div class="skel h-4 w-1/2 mt-3"></div>
     </div>`
-    const [vd, md, rd, ld] = await Promise.all([api.vendor(id), api.menus(id), api.reviews(id), api.loyalty(id)])
+    let vd, md, rd, ld
+    try {
+      ;[vd, md, rd, ld] = await Promise.all([api.vendor(id), api.menus(id), api.reviews(id), api.loyalty(id)])
+    } catch {}
+    if (!vd || !vd.vendor) {
+      view.innerHTML = `<div class="max-w-3xl mx-auto px-6 py-20 text-center"><div class="text-5xl mb-4">😕</div><div class="text-xl font-extrabold">Store not found</div><p class="text-gray-500 mt-1">It may have been removed.</p><button class="btn btn-primary mt-5" onclick="location.hash='#/'">Browse stores</button></div>`
+      return
+    }
     const v = vd.vendor
     state.vendorCache[id] = v
     const sections = (md.sections || []).filter((s) => (s.items || []).length)
@@ -798,7 +812,10 @@
       const s = e.target.closest('[data-star]')
       if (!s) return
       rating = Number(s.dataset.star)
-      $$('#star-picker i').forEach((el, i) => el.classList.toggle('star', i < rating), $$('#star-picker i').forEach((el, i) => el.classList.toggle('text-gray-300', i >= rating)))
+      $$('#star-picker i').forEach((el, i) => {
+        el.classList.toggle('star', i < rating)
+        el.classList.toggle('text-gray-300', i >= rating)
+      })
     })
     $('#rev-submit').addEventListener('click', async () => {
       await api.postReview(v.id, { rating, text: $('#rev-text').value.trim(), author_name: $('#rev-name').value.trim() })
@@ -869,6 +886,10 @@
       if (res.token) {
         state.user = { email, token: res.token }
         store.set('menu_user', state.user)
+        // Restore the store dashboard session for returning vendors
+        if (res.user && res.user.role === 'vendor' && res.user.vendor_id) {
+          store.set('menu_vendor', { token: res.token, vendor_id: res.user.vendor_id, email })
+        }
         closeModal(); renderShell(); route()
         toast(`Welcome, ${email.split('@')[0]}!`, 'fa-solid fa-circle-check')
       }
@@ -1186,7 +1207,7 @@
   }
 
   async function renderTracking(id) {
-    clearInterval(state.trackTimer)
+    clearTimeout(state.trackTimer)
     const view = $('#view')
     view.innerHTML = `<div class="max-w-6xl mx-auto px-4 md:px-6 py-8"><div class="skel w-full" style="height:400px;border-radius:16px"></div></div>`
     const paint = async (autoAdvanced) => {
