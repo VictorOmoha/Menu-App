@@ -343,7 +343,7 @@
               <div id="h-empty" style="display:none;margin-top:14px" class="dx-card">
                 <div style="padding:14px 16px">
                   <div style="font-weight:800">It's quiet right now</div>
-                  <div class="dx-sub" style="font-size:14px;margin-top:2px">No live orders nearby. Send yourself a practice order to see how deliveries work.</div>
+                  <div class="dx-sub" style="font-size:14px;margin-top:2px">No delivery orders from ${esc(d.city)} restaurants yet. You'll only see <b>delivery</b> orders (not pickup) placed with vendors in ${esc(d.city)}. Or send yourself a practice order:</div>
                   <button class="dx-btn dx-btn-secondary dx-btn-sm" id="h-demo" style="margin-top:12px"><i class="fa-solid fa-wand-magic-sparkles"></i> Try a demo order</button>
                 </div>
               </div>
@@ -376,7 +376,8 @@
     if (!online) {
       $('#h-goonline').addEventListener('click', async () => {
         const res = await api.shiftStart({ duration_min: Number($('#h-duration').value) })
-        if (res.shift) { toast("You're online — let's deliver!", 'fa-solid fa-bolt'); state.emptyPolls = 0; await refreshSelf(); renderHome() }
+        // A fresh shift clears previously declined offers so they can be re-offered
+        if (res.shift) { state.skips = []; toast("You're online — let's deliver!", 'fa-solid fa-bolt'); state.emptyPolls = 0; await refreshSelf(); renderHome() }
       })
       return
     }
